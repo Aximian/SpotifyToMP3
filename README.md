@@ -79,7 +79,7 @@ Executable location: `bin\Release\net8.0-windows\win-x64\publish\`
 
 **Download fails**
 - Check your internet connection
-- Some tracks may not be available on YouTube
+- Some tracks may not be available on Spotify
 
 ## Important Notes
 
