@@ -1,0 +1,73 @@
+<Application x:Class="SpotifyToMP3.Views.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Colors -->
+            <SolidColorBrush x:Key="PrimaryColor" Color="#1DB954"/>
+            <SolidColorBrush x:Key="PrimaryHoverColor" Color="#1ed760"/>
+            <SolidColorBrush x:Key="BackgroundColor" Color="#0A0A0A"/>
+            <SolidColorBrush x:Key="SurfaceColor" Color="#181818"/>
+            <SolidColorBrush x:Key="CardColor" Color="#282828"/>
+            <SolidColorBrush x:Key="CardHoverColor" Color="#333333"/>
+            <SolidColorBrush x:Key="TextColor" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="SecondaryTextColor" Color="#B3B3B3"/>
+            <SolidColorBrush x:Key="BorderColor" Color="#404040"/>
+            <SolidColorBrush x:Key="AccentColor" Color="#FF6B00"/>
+            <SolidColorBrush x:Key="AccentHoverColor" Color="#FF8533"/>
+            
+            <!-- Button Styles -->
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource PrimaryColor}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Padding" Value="20,10"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" 
+                                    CornerRadius="25" 
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" 
+                                                VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{StaticResource PrimaryHoverColor}"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.5"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            
+            <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{StaticResource AccentHoverColor}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            
+            <!-- TextBox Style -->
+            <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="15,12"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+

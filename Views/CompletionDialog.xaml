@@ -1,0 +1,55 @@
+<Window x:Class="SpotifyToMP3.Views.CompletionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Download Status" Height="320" Width="600"
+        Background="{StaticResource BackgroundColor}"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True">
+    <Border Background="{StaticResource SurfaceColor}"
+            BorderBrush="{StaticResource BorderColor}"
+            BorderThickness="2"
+            CornerRadius="15"
+            Padding="40">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock x:Name="TitleText"
+                           Text="✅ Download Complete" 
+                           FontSize="24" 
+                           FontWeight="Bold" 
+                           Foreground="{StaticResource TextColor}"
+                           HorizontalAlignment="Center"/>
+                <TextBlock x:Name="MessageText"
+                           Text="Download complete!" 
+                           FontSize="14" 
+                           Foreground="{StaticResource SecondaryTextColor}"
+                           HorizontalAlignment="Center"
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Grid.Row="2" 
+                        Orientation="Horizontal" 
+                        HorizontalAlignment="Center"
+                        Margin="0,20,0,0">
+                <Button x:Name="OkButton"
+                        Content="OK" 
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Height="40" 
+                        MinWidth="120"
+                        Click="OkButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
+
