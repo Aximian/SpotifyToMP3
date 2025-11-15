@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ApplicationDefinition Include="Views\App.xaml" />
+    <Content Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>
