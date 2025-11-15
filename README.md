@@ -1,14 +1,15 @@
-# Spotify to MP3 Converter
+# Spotify & YouTube to MP3 Converter
 
-A C# WPF application that searches Spotify tracks and downloads them as MP3 files using Spotify's API and yt-dlp.
+A C# WPF application that searches and downloads music from both Spotify and YouTube, converting them to MP3 files using Spotify's API and yt-dlp.
 
 ## Quick Start
 
 ### For End Users (Pre-built Release)
 1. **[Download the latest release](https://github.com/Aximian/SpotifyToMP3/releases/latest)** and extract it
 2. Run `SpotifyToMP3.exe` from the extracted folder
-3. Click Settings and enter your Spotify credentials (see below)
-4. Start searching and downloading
+3. Click Settings and enter your Spotify credentials (required for Spotify searches, see below)
+4. Select your source (Spotify or YouTube) using the selector in the top left
+5. Start searching and downloading
 
 ## Getting Spotify Credentials
 
@@ -28,15 +29,31 @@ A C# WPF application that searches Spotify tracks and downloads them as MP3 file
 
 ## How to Use
 
-1. Launch the application and wait for "Connected to Spotify" message
-2. Search for tracks:
+### Source Selection
+- Use the source selector in the top left corner to switch between **Spotify** (green) and **YouTube** (blue/red)
+- Spotify requires credentials (see below), YouTube works without any setup
+
+### Searching
+
+1. **For Spotify:**
+   - Launch the application and wait for "Connected to Spotify" message
    - Enter a song name, artist, or album (plain text)
    - Or paste a Spotify playlist/track URL
    - Press Enter or click Search
-3. Download tracks:
-   - Click Download next to any track
-   - Use "Download All" for playlists
-   - Files are saved as 320kbps MP3 to your chosen directory
+
+2. **For YouTube:**
+   - Select YouTube from the source selector
+   - Enter a search query (song name, artist, etc.)
+   - Or paste a YouTube video URL
+   - Press Enter or click Search
+   - Results show up to 30 matching videos
+
+### Downloading
+
+- Click **Download** next to any track to download it individually
+- Use the **filter box** (with filter icon) to search through loaded results
+- Files are saved as high-quality MP3 to your chosen directory
+- Already downloaded files are marked with "Already Downloaded ✓"
 
 ## Building from Source
 
@@ -75,19 +92,37 @@ Currently, macOS builds are not available. To add macOS support:
 2. Or use .NET MAUI for cross-platform support
 3. Update build scripts to include macOS runtime identifier: `osx-x64` or `osx-arm64`
 
+## Features
+
+- 🎵 **Dual Source Support**: Search and download from both Spotify and YouTube
+- 🔍 **Smart Search**: Text search or direct URL support for both platforms
+- 🎨 **Modern UI**: Clean, intuitive interface with source selector
+- 🔽 **Filter Results**: Filter loaded tracks by title, artist, or album
+- ⚡ **Fast Downloads**: Optimized YouTube search and image loading
+- 📁 **Organized Output**: Files saved with proper naming (Title - Artist.mp3)
+- ⚙️ **Customizable**: Choose your download directory and manage settings
+
 ## Troubleshooting
 
 **"Failed to connect to Spotify"**
 - Verify your Client ID and Client Secret are correct
 - Check your internet connection
+- Make sure you've entered credentials in Settings
 
 **"yt-dlp not found" or "FFmpeg not found"**
 - For standalone builds: Make sure the .exe files are in the same folder as SpotifyToMP3.exe
 - For development: Place them in the `bin` folder
+- These tools are required for YouTube downloads
+
+**YouTube search is slow or fails**
+- Check your internet connection
+- Ensure yt-dlp.exe is present and up to date
+- Try a different search query
 
 **Download fails**
 - Check your internet connection
-- Some tracks may not be available on Spotify
+- Some tracks may not be available
+- For YouTube: Ensure yt-dlp and ffmpeg are working correctly
 
 ## Important Notes
 
