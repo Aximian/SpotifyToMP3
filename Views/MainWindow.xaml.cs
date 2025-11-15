@@ -28,6 +28,9 @@ namespace SpotifyToMP3.Views
         private CancellationTokenSource? _downloadCancellationTokenSource;
         private List<System.Diagnostics.Process>? _activeProcesses;
         private string _selectedSource = "Spotify"; // "Spotify" or "YouTube"
+        private int _displayedProgressPercent = 0;
+        private System.Windows.Threading.DispatcherTimer? _progressTimer;
+        private TrackItem? _currentDownloadingTrack;
 
         public MainWindow()
         {
@@ -93,7 +96,7 @@ namespace SpotifyToMP3.Views
             try
             {
                 if (FilterIcon == null) return;
-                
+
                 // Try multiple paths
                 string[] possiblePaths = new[]
                 {
@@ -118,8 +121,8 @@ namespace SpotifyToMP3.Views
                     var bitmap = new System.Windows.Media.Imaging.BitmapImage();
                     bitmap.BeginInit();
                     bitmap.UriSource = new Uri(filterPath, UriKind.Absolute);
-                    bitmap.DecodePixelWidth = 20;
-                    bitmap.DecodePixelHeight = 20;
+                    bitmap.DecodePixelWidth = 24;
+                    bitmap.DecodePixelHeight = 24;
                     bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
                     bitmap.EndInit();
                     bitmap.Freeze();
@@ -194,26 +197,26 @@ namespace SpotifyToMP3.Views
                     BlurRadius = 8,
                     Opacity = 0.5
                 };
-                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground = 
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground =
                     System.Windows.Media.Brushes.White;
 
                 // YouTube unselected - dark
                 YouTubeSelector.Background = new System.Windows.Media.SolidColorBrush(
                     (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
                 YouTubeSelector.Effect = null;
-                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground = 
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground =
                     new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
 
                 TitleText.Text = "🎵 Spotify to MP3";
                 SubtitleText.Text = "Convert your favorite Spotify tracks to MP3";
-                
+
                 // Update tooltip
                 if (SearchTextBox.ToolTip is ToolTip tooltip)
                 {
                     tooltip.Content = "Enter a song name, artist, or paste a Spotify track/playlist URL. Plain text will search Spotify for similar songs.";
                 }
-                
+
                 // Update empty state text
                 EmptyStateText.Text = "🎵 Search for tracks, or paste a Spotify track/playlist URL to get started";
             }
@@ -236,26 +239,26 @@ namespace SpotifyToMP3.Views
                     BlurRadius = 8,
                     Opacity = 0.5
                 };
-                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground = 
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground =
                     System.Windows.Media.Brushes.White;
 
                 // Spotify unselected - dark
                 SpotifySelector.Background = new System.Windows.Media.SolidColorBrush(
                     (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
                 SpotifySelector.Effect = null;
-                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground = 
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground =
                     new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
 
                 TitleText.Text = "▶️ YouTube to MP3";
                 SubtitleText.Text = "Convert your favorite YouTube videos to MP3";
-                
+
                 // Update tooltip
                 if (SearchTextBox.ToolTip is ToolTip tooltip)
                 {
                     tooltip.Content = "Enter a song name or paste a YouTube video URL. Plain text will search YouTube for similar videos.";
                 }
-                
+
                 // Update empty state text
                 EmptyStateText.Text = "▶️ Search for videos, or paste a YouTube video URL to get started";
             }
@@ -376,7 +379,7 @@ namespace SpotifyToMP3.Views
                     // Check if input looks like a URL but is not Spotify
                     if (IsUrl(searchQuery) && !IsSpotifyUrl(searchQuery))
                     {
-                        ShowErrorDialog("Invalid URL", 
+                        ShowErrorDialog("Invalid URL",
                             $"The URL you entered is not a valid Spotify URL.\n\nPlease enter:\n• A Spotify track URL (e.g., https://open.spotify.com/track/...)\n• A Spotify playlist URL (e.g., https://open.spotify.com/playlist/...)\n• Or a song name to search");
                         return;
                     }
@@ -409,7 +412,7 @@ namespace SpotifyToMP3.Views
                     // Check if input looks like a URL but is not YouTube
                     if (IsUrl(searchQuery) && !IsYouTubeUrl(searchQuery))
                     {
-                        ShowErrorDialog("Invalid URL", 
+                        ShowErrorDialog("Invalid URL",
                             $"The URL you entered is not a valid YouTube URL.\n\nPlease enter:\n• A YouTube video URL (e.g., https://www.youtube.com/watch?v=...)\n• Or a song name to search");
                         return;
                     }
@@ -424,7 +427,7 @@ namespace SpotifyToMP3.Views
                     else if (IsYouTubePlaylistUrl(searchQuery))
                     {
                         // Show error for playlist (not supported yet)
-                        ShowErrorDialog("Invalid URL", 
+                        ShowErrorDialog("Invalid URL",
                             $"YouTube playlist URLs are not currently supported.\n\nPlease use a single YouTube video URL or search for a song name.");
                     }
                     else
@@ -629,7 +632,7 @@ namespace SpotifyToMP3.Views
                     };
 
                     process.BeginOutputReadLine();
-                    
+
                     // Wait with timeout (30 seconds)
                     bool exited = process.WaitForExit(30000);
                     if (!exited)
@@ -652,9 +655,9 @@ namespace SpotifyToMP3.Views
                     try
                     {
                         var videoInfo = JsonConvert.DeserializeObject<dynamic>(jsonOutput);
-                        string title = videoInfo?.title?.ToString() ?? "Unknown Title";
-                        string uploader = videoInfo?.uploader?.ToString() ?? "Unknown Artist";
-                        
+                        string title = videoInfo?.title?.ToString() ?? "";
+                        string uploader = videoInfo?.uploader?.ToString() ?? "";
+
                         // Use YouTube's fast thumbnail URL format for instant loading
                         string? thumbnail = null;
                         if (!string.IsNullOrEmpty(videoId))
@@ -667,14 +670,17 @@ namespace SpotifyToMP3.Views
                         }
                         double? duration = videoInfo?.duration != null ? (double?)videoInfo.duration : null;
 
-                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(title)} - {SanitizeFileName(uploader)}.mp3");
+                        // Use fallback for filename if empty, but keep metadata empty
+                        string fileNameTitle = string.IsNullOrWhiteSpace(title) ? "Unknown Title" : title;
+                        string fileNameUploader = string.IsNullOrWhiteSpace(uploader) ? "Unknown Artist" : uploader;
+                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameUploader)}.mp3");
                         bool alreadyExists = File.Exists(outputPath);
 
                         var trackItem = new TrackItem
                         {
                             Id = videoId,
-                            Title = title,
-                            Artist = uploader,
+                            Title = title, // Keep empty for metadata
+                            Artist = uploader, // Keep empty for metadata
                             Album = "YouTube",
                             Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
                             ImageUrl = thumbnail,
@@ -838,9 +844,9 @@ namespace SpotifyToMP3.Views
 
                             string? videoId = videoInfo?.id?.ToString();
                             // With --flat-playlist, some fields might be null, so handle gracefully
-                            string title = videoInfo?.title?.ToString() ?? videoInfo?.name?.ToString() ?? "Unknown Title";
-                            string uploader = videoInfo?.uploader?.ToString() ?? videoInfo?.channel?.ToString() ?? "Unknown Artist";
-                            
+                            string title = videoInfo?.title?.ToString() ?? videoInfo?.name?.ToString() ?? "";
+                            string uploader = videoInfo?.uploader?.ToString() ?? videoInfo?.channel?.ToString() ?? "";
+
                             // Use YouTube's fast thumbnail URL format for instant loading
                             // Format: https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg (medium quality, fast)
                             string? thumbnail = null;
@@ -957,7 +963,7 @@ namespace SpotifyToMP3.Views
             if (string.IsNullOrEmpty(input))
                 return false;
 
-            return input.StartsWith("http://") || input.StartsWith("https://") || 
+            return input.StartsWith("http://") || input.StartsWith("https://") ||
                    input.StartsWith("www.") || input.Contains("://");
         }
 
@@ -1022,7 +1028,9 @@ namespace SpotifyToMP3.Views
                     Id = trackResponse.Id,
                     Title = trackResponse.Name,
                     Artist = string.Join(", ", trackResponse.Artists?.Select(a => a.Name) ?? Array.Empty<string>()),
-                    Album = trackResponse.Album?.Name ?? "Unknown Album",
+                    Album = trackResponse.Album?.Name ?? "",
+                    AlbumArtist = string.Join(", ", trackResponse.Album?.Artists?.Select(a => a.Name) ?? Array.Empty<string>()),
+                    Year = ExtractYearFromReleaseDate(trackResponse.Album?.ReleaseDate, trackResponse.Album?.ReleaseDatePrecision),
                     Duration = TimeSpan.FromMilliseconds(trackResponse.DurationMs),
                     ImageUrl = imageUrl,
                     CanDownload = !alreadyExists,
@@ -1091,7 +1099,9 @@ namespace SpotifyToMP3.Views
                                 Id = item.Track.Id,
                                 Title = item.Track.Name,
                                 Artist = string.Join(", ", item.Track.Artists?.Select(a => a.Name) ?? Array.Empty<string>()),
-                                Album = item.Track.Album?.Name ?? "Unknown Album",
+                                Album = item.Track.Album?.Name ?? "",
+                                AlbumArtist = string.Join(", ", item.Track.Album?.Artists?.Select(a => a.Name) ?? Array.Empty<string>()),
+                                Year = ExtractYearFromReleaseDate(item.Track.Album?.ReleaseDate, item.Track.Album?.ReleaseDatePrecision),
                                 Duration = TimeSpan.FromMilliseconds(item.Track.DurationMs),
                                 ImageUrl = imageUrl,
                                 CanDownload = !alreadyExists,
@@ -1164,7 +1174,9 @@ namespace SpotifyToMP3.Views
                         Id = track.Id,
                         Title = track.Name,
                         Artist = string.Join(", ", track.Artists.Select(a => a.Name)),
-                        Album = track.Album?.Name ?? "Unknown Album",
+                        Album = track.Album?.Name ?? "",
+                        AlbumArtist = string.Join(", ", track.Album?.Artists?.Select(a => a.Name) ?? Array.Empty<string>()),
+                        Year = ExtractYearFromReleaseDate(track.Album?.ReleaseDate, track.Album?.ReleaseDatePrecision),
                         Duration = TimeSpan.FromMilliseconds(track.DurationMs),
                         ImageUrl = imageUrl,
                         CanDownload = !alreadyExists,
@@ -1216,15 +1228,68 @@ namespace SpotifyToMP3.Views
             {
                 track.CanDownload = false;
                 track.DownloadButtonText = "Downloading...";
-                StatusText.Text = $"Downloading: {track.Title} - {track.Artist}";
+                _currentDownloadingTrack = track;
+                _displayedProgressPercent = 0;
+
+                // Start progressive percentage timer
+                _progressTimer = new System.Windows.Threading.DispatcherTimer();
+                _progressTimer.Interval = TimeSpan.FromMilliseconds(50); // Update every 50ms for smoother animation
+                _progressTimer.Tick += (s, e) =>
+                {
+                    if (_currentDownloadingTrack != null)
+                    {
+                        // Get actual progress from track
+                        double actualProgress = _currentDownloadingTrack.DownloadProgress;
+                        int actualPercent = (int)Math.Round(actualProgress);
+
+                        // Smoothly catch up to actual progress
+                        if (_displayedProgressPercent < actualPercent)
+                        {
+                            // Calculate how far behind we are
+                            int gap = actualPercent - _displayedProgressPercent;
+
+                            // If we're far behind, catch up faster (increment by 2-5% depending on gap)
+                            // If we're close, increment by 1% for smoothness
+                            int increment = gap > 10 ? 5 : (gap > 5 ? 3 : (gap > 2 ? 2 : 1));
+
+                            _displayedProgressPercent = Math.Min(_displayedProgressPercent + increment, actualPercent);
+                            StatusText.Text = $"Downloading: {_currentDownloadingTrack.Title} - {_currentDownloadingTrack.Artist} ({_displayedProgressPercent}%)";
+                        }
+                        else if (_displayedProgressPercent > actualPercent)
+                        {
+                            // If we somehow got ahead, set to actual (shouldn't happen, but safety check)
+                            _displayedProgressPercent = actualPercent;
+                            StatusText.Text = $"Downloading: {_currentDownloadingTrack.Title} - {_currentDownloadingTrack.Artist} ({_displayedProgressPercent}%)";
+                        }
+                        else if (_displayedProgressPercent >= 100)
+                        {
+                            _progressTimer?.Stop();
+                        }
+                    }
+                };
+                _progressTimer.Start();
+
+                StatusText.Text = $"Downloading: {track.Title} - {track.Artist} (0%)";
 
                 await DownloadAndConvertTrack(track, outputPath);
+
+                // Stop progress timer
+                _progressTimer?.Stop();
+                _progressTimer = null;
+                _currentDownloadingTrack = null;
+                _displayedProgressPercent = 0;
 
                 track.DownloadButtonText = "Downloaded ✓";
                 StatusText.Text = $"Successfully downloaded: {track.Title}";
             }
             catch (Exception ex)
             {
+                // Stop progress timer
+                _progressTimer?.Stop();
+                _progressTimer = null;
+                _currentDownloadingTrack = null;
+                _displayedProgressPercent = 0;
+
                 track.CanDownload = true;
                 track.DownloadButtonText = "Download";
                 StatusText.Text = $"Download failed: {ex.Message}";
@@ -1353,7 +1418,9 @@ namespace SpotifyToMP3.Views
                                 // Update progress more frequently (download phase is 50% of total)
                                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    track.DownloadProgress = progress * 0.5; // Download is 50% of total process
+                                    double totalProgress = progress * 0.5; // Download is 50% of total process
+                                    track.DownloadProgress = totalProgress;
+                                    // Don't update StatusText here - let the timer handle progressive display
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
                         }
@@ -1433,9 +1500,36 @@ namespace SpotifyToMP3.Views
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     track.DownloadProgress = 50;
+                    // Don't update StatusText here - let the timer handle progressive display
                 }, System.Windows.Threading.DispatcherPriority.Background);
 
-                string ffmpegArgs = $"-i \"{downloadedFile}\" -codec:a libmp3lame -b:a 320k -ar 44100 -y \"{outputPath}\"";
+                // Build metadata arguments - only include if not "Unknown" or empty
+                var metadataArgs = new System.Text.StringBuilder();
+
+                // Helper function to escape and add metadata
+                void AddMetadata(string key, string value)
+                {
+                    if (!string.IsNullOrWhiteSpace(value) &&
+                        !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                        !value.Equals("Unknown Title", StringComparison.OrdinalIgnoreCase) &&
+                        !value.Equals("Unknown Artist", StringComparison.OrdinalIgnoreCase) &&
+                        !value.Equals("Unknown Album", StringComparison.OrdinalIgnoreCase) &&
+                        !value.Equals("YouTube", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string escaped = value.Replace("\"", "\\\"").Replace("$", "\\$");
+                        metadataArgs.Append($" -metadata {key}=\"{escaped}\"");
+                    }
+                }
+
+                AddMetadata("title", track.Title);
+                AddMetadata("artist", track.Artist);
+                AddMetadata("album", track.Album);
+                AddMetadata("album_artist", track.AlbumArtist);
+                AddMetadata("date", track.Year);
+                AddMetadata("genre", track.Genre);
+                AddMetadata("track", track.TrackNumber);
+
+                string ffmpegArgs = $"-i \"{downloadedFile}\" -codec:a libmp3lame -b:a 320k -ar 44100{metadataArgs} -y \"{outputPath}\"";
 
                 var convertProcessInfo = new System.Diagnostics.ProcessStartInfo
                 {
@@ -1501,7 +1595,9 @@ namespace SpotifyToMP3.Views
 
                                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    track.DownloadProgress = 50 + conversionProgress; // 50% (download) + conversion progress
+                                    double totalProgress = 50 + conversionProgress; // 50% (download) + conversion progress
+                                    track.DownloadProgress = totalProgress;
+                                    // Don't update StatusText here - let the timer handle progressive display
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
                         }
@@ -1734,6 +1830,24 @@ namespace SpotifyToMP3.Views
         {
             char[] invalidChars = Path.GetInvalidFileNameChars();
             return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+        }
+
+        private string ExtractYearFromReleaseDate(string? releaseDate, string? precision)
+        {
+            if (string.IsNullOrWhiteSpace(releaseDate))
+                return "";
+
+            // Spotify release_date can be in formats: "2023", "2023-06", "2023-06-15"
+            // precision can be "year", "month", "day"
+            if (precision == "year" || releaseDate.Length == 4)
+            {
+                return releaseDate.Substring(0, 4);
+            }
+            else if (releaseDate.Length >= 4)
+            {
+                return releaseDate.Substring(0, 4);
+            }
+            return "";
         }
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)

@@ -16,6 +16,10 @@ namespace SpotifyToMP3.Models
         public string Title { get; set; } = "";
         public string Artist { get; set; } = "";
         public string Album { get; set; } = "";
+        public string AlbumArtist { get; set; } = "";
+        public string Year { get; set; } = "";
+        public string Genre { get; set; } = "";
+        public string TrackNumber { get; set; } = "";
         public TimeSpan Duration { get; set; }
         public string? ImageUrl { get; set; }
 

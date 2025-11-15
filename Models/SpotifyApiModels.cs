@@ -57,6 +57,15 @@ namespace SpotifyToMP3.Models
 
         [JsonProperty("images")]
         public ImageResponse[]? Images { get; set; }
+
+        [JsonProperty("release_date")]
+        public string? ReleaseDate { get; set; }
+
+        [JsonProperty("release_date_precision")]
+        public string? ReleaseDatePrecision { get; set; }
+
+        [JsonProperty("artists")]
+        public ArtistResponse[]? Artists { get; set; }
     }
 
     public class ImageResponse
