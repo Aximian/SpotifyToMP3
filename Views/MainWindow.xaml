@@ -4,7 +4,8 @@
         Title="Spotify to MP3 Converter" Height="750" Width="1100"
         Background="{StaticResource BackgroundColor}"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="CanResize">
+        ResizeMode="CanResize"
+        Closing="Window_Closing">
     <Window.Resources>
         <Style x:Key="TrackCardStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardColor}"/>
@@ -30,14 +31,64 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header with Gradient -->
+        <!-- Header with Source Selector -->
         <Grid Grid.Row="0" Margin="0,0,0,30">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="🎵 Spotify to MP3" 
+
+            <!-- Source Selector -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,30,0" VerticalAlignment="Top">
+                <Border x:Name="SpotifySelector"
+                        Background="#1DB954"
+                        CornerRadius="25"
+                        Padding="20,12"
+                        Margin="0,0,15,0"
+                        Cursor="Hand"
+                        MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
+                        Tag="Spotify">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="3" BlurRadius="8" Opacity="0.5"/>
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🎵" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Spotify" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Foreground="White"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="YouTubeSelector"
+                        Background="#282828"
+                        CornerRadius="25"
+                        Padding="20,12"
+                        Cursor="Hand"
+                        MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
+                        Tag="YouTube">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#333333"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="▶️" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="YouTube" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Foreground="#B3B3B3"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="TitleText" Text="🎵 Spotify to MP3" 
                            FontSize="42" 
                            FontWeight="Bold" 
                            Foreground="{StaticResource TextColor}"
@@ -46,12 +97,12 @@
                         <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="3" BlurRadius="10" Opacity="0.3"/>
                     </TextBlock.Effect>
                 </TextBlock>
-                <TextBlock Text="Convert your favorite Spotify tracks to MP3" 
+                <TextBlock x:Name="SubtitleText" Text="Convert your favorite Spotify tracks to MP3" 
                            FontSize="16" 
                            Foreground="{StaticResource SecondaryTextColor}"
                            Margin="0,0,0,0"/>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
                 <Button x:Name="OpenFolderButton"
                         Content="📁 Open Folder" 
                         Style="{StaticResource PrimaryButtonStyle}"
@@ -88,7 +139,7 @@
                              KeyDown="SearchTextBox_KeyDown"
                              TextChanged="SearchTextBox_TextChanged">
                         <TextBox.ToolTip>
-                            <ToolTip Content="Enter a song name, artist, or paste a Spotify track/playlist URL. Plain text will search Spotify for similar songs."/>
+                            <ToolTip x:Name="SearchToolTip" Content="Enter a song name, artist, or paste a URL. Plain text will search for similar songs."/>
                         </TextBox.ToolTip>
                     </TextBox>
                     <Border.Style>
@@ -117,17 +168,19 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
                 <Border Grid.Column="0" 
-                        CornerRadius="10" 
+                        CornerRadius="6" 
                         Background="{StaticResource SurfaceColor}"
                         BorderBrush="{StaticResource BorderColor}"
                         BorderThickness="1">
                     <TextBox x:Name="FilterTextBox"
-                             Height="42"
-                             FontSize="13"
+                             Height="28"
+                             FontSize="12"
                              VerticalContentAlignment="Center"
+                             Padding="8,4"
                              TextChanged="FilterTextBox_TextChanged">
                         <TextBox.Style>
                             <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBoxStyle}">
@@ -155,20 +208,27 @@
                     </Border.Style>
                 </Border>
                 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0">
-                    <Button x:Name="DownloadAllButton"
-                            Content="⬇️ Download All" 
-                            Height="42" 
-                            MinWidth="150" 
-                            Margin="0,0,10,0"
-                            Click="DownloadAllButton_Click"
-                            Visibility="Collapsed">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                <!-- Filter Icon -->
+                <Image x:Name="FilterIcon"
+                       Grid.Column="1"
+                       Width="20"
+                       Height="20"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       Stretch="Uniform">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=FilterTextBox, Path=Visibility}" Value="Visible">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="15,0,0,0">
                     <Button x:Name="StopDownloadButton"
                             Content="⏹️ Stop" 
                             Height="42" 
@@ -218,7 +278,9 @@
                                                 VerticalAlignment="Center">
                                             <Image Stretch="UniformToFill"
                                                    VerticalAlignment="Center"
-                                                   HorizontalAlignment="Center">
+                                                   HorizontalAlignment="Center"
+                                                   RenderOptions.BitmapScalingMode="LowQuality"
+                                                   RenderOptions.CachingHint="Cache">
                                                 <Image.Source>
                                                     <Binding Path="ImageUrl">
                                                         <Binding.TargetNullValue>

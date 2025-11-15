@@ -27,6 +27,7 @@ namespace SpotifyToMP3.Views
         private string _clientSecret = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_SECRET") ?? "YOUR_CLIENT_SECRET_HERE";
         private CancellationTokenSource? _downloadCancellationTokenSource;
         private List<System.Diagnostics.Process>? _activeProcesses;
+        private string _selectedSource = "Spotify"; // "Spotify" or "YouTube"
 
         public MainWindow()
         {
@@ -83,6 +84,195 @@ namespace SpotifyToMP3.Views
             }
 
             InitializeSpotify();
+            UpdateSourceSelector();
+            LoadFilterIcon();
+        }
+
+        private void LoadFilterIcon()
+        {
+            try
+            {
+                if (FilterIcon == null) return;
+                
+                // Try multiple paths
+                string[] possiblePaths = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "filter.png"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "filter.png"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "Assets", "filter.png"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "filter.png")
+                };
+
+                string? filterPath = null;
+                foreach (string path in possiblePaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        filterPath = path;
+                        break;
+                    }
+                }
+
+                if (filterPath != null)
+                {
+                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.UriSource = new Uri(filterPath, UriKind.Absolute);
+                    bitmap.DecodePixelWidth = 20;
+                    bitmap.DecodePixelHeight = 20;
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    Dispatcher.Invoke(() =>
+                    {
+                        FilterIcon.Source = bitmap;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load filter icon: {ex.Message}");
+            }
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // Cancel any ongoing downloads
+            _downloadCancellationTokenSource?.Cancel();
+
+            // Kill all active processes immediately
+            lock (_activeProcesses ?? new List<System.Diagnostics.Process>())
+            {
+                if (_activeProcesses != null)
+                {
+                    foreach (var process in _activeProcesses.ToList())
+                    {
+                        try
+                        {
+                            if (!process.HasExited)
+                            {
+                                process.Kill();
+                            }
+                            process.Dispose();
+                        }
+                        catch { /* Ignore errors when killing processes */ }
+                    }
+                    _activeProcesses.Clear();
+                }
+            }
+
+            // Dispose cancellation token
+            try
+            {
+                _downloadCancellationTokenSource?.Dispose();
+            }
+            catch { }
+
+            // Dispose HTTP client
+            try
+            {
+                _httpClient?.Dispose();
+            }
+            catch { }
+
+            // Force immediate exit - don't wait for anything
+            e.Cancel = false;
+        }
+
+        private void UpdateSourceSelector()
+        {
+            if (_selectedSource == "Spotify")
+            {
+                // Spotify selected - green and black
+                SpotifySelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954"));
+                SpotifySelector.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = System.Windows.Media.Color.FromRgb(29, 185, 84),
+                    Direction = 270,
+                    ShadowDepth = 3,
+                    BlurRadius = 8,
+                    Opacity = 0.5
+                };
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground = 
+                    System.Windows.Media.Brushes.White;
+
+                // YouTube unselected - dark
+                YouTubeSelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
+                YouTubeSelector.Effect = null;
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground = 
+                    new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
+
+                TitleText.Text = "🎵 Spotify to MP3";
+                SubtitleText.Text = "Convert your favorite Spotify tracks to MP3";
+                
+                // Update tooltip
+                if (SearchTextBox.ToolTip is ToolTip tooltip)
+                {
+                    tooltip.Content = "Enter a song name, artist, or paste a Spotify track/playlist URL. Plain text will search Spotify for similar songs.";
+                }
+                
+                // Update empty state text
+                EmptyStateText.Text = "🎵 Search for tracks, or paste a Spotify track/playlist URL to get started";
+            }
+            else // YouTube
+            {
+                // YouTube selected - blue and red gradient
+                var gradientBrush = new System.Windows.Media.LinearGradientBrush();
+                gradientBrush.StartPoint = new System.Windows.Point(0, 0);
+                gradientBrush.EndPoint = new System.Windows.Point(1, 0);
+                gradientBrush.GradientStops.Add(new System.Windows.Media.GradientStop(
+                    System.Windows.Media.Color.FromRgb(255, 0, 0), 0.0)); // Red
+                gradientBrush.GradientStops.Add(new System.Windows.Media.GradientStop(
+                    System.Windows.Media.Color.FromRgb(0, 0, 255), 1.0)); // Blue
+                YouTubeSelector.Background = gradientBrush;
+                YouTubeSelector.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = System.Windows.Media.Color.FromRgb(0, 0, 255),
+                    Direction = 270,
+                    ShadowDepth = 3,
+                    BlurRadius = 8,
+                    Opacity = 0.5
+                };
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)YouTubeSelector.Child).Children[1]).Foreground = 
+                    System.Windows.Media.Brushes.White;
+
+                // Spotify unselected - dark
+                SpotifySelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
+                SpotifySelector.Effect = null;
+                ((System.Windows.Controls.TextBlock)((System.Windows.Controls.StackPanel)SpotifySelector.Child).Children[1]).Foreground = 
+                    new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
+
+                TitleText.Text = "▶️ YouTube to MP3";
+                SubtitleText.Text = "Convert your favorite YouTube videos to MP3";
+                
+                // Update tooltip
+                if (SearchTextBox.ToolTip is ToolTip tooltip)
+                {
+                    tooltip.Content = "Enter a song name or paste a YouTube video URL. Plain text will search YouTube for similar videos.";
+                }
+                
+                // Update empty state text
+                EmptyStateText.Text = "▶️ Search for videos, or paste a YouTube video URL to get started";
+            }
+        }
+
+        private void SourceSelector_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var border = sender as System.Windows.Controls.Border;
+            if (border?.Tag?.ToString() == "Spotify")
+            {
+                _selectedSource = "Spotify";
+            }
+            else if (border?.Tag?.ToString() == "YouTube")
+            {
+                _selectedSource = "YouTube";
+            }
+            UpdateSourceSelector();
         }
 
         private async void InitializeSpotify()
@@ -159,7 +349,7 @@ namespace SpotifyToMP3.Views
 
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_accessToken))
+            if (_selectedSource == "Spotify" && string.IsNullOrEmpty(_accessToken))
             {
                 System.Windows.MessageBox.Show("Spotify credentials not configured.\n\nPlease go to Settings (⚙️ button) and enter your Spotify Client ID and Client Secret.\n\nSee README.md for instructions on getting credentials.",
                     "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -180,36 +370,74 @@ namespace SpotifyToMP3.Views
                 _tracks.Clear();
                 _allTracks.Clear();
                 FilterTextBox.Visibility = Visibility.Collapsed;
-                DownloadAllButton.Visibility = Visibility.Collapsed;
 
-                // Check if input is a Spotify playlist URL
-                string? playlistId = ExtractPlaylistId(searchQuery);
-                if (!string.IsNullOrEmpty(playlistId))
+                if (_selectedSource == "Spotify")
                 {
-                    // Load playlist tracks
-                    await LoadPlaylistTracks(playlistId);
-                }
-                else
-                {
-                    // Check if input is a Spotify track URL
-                    string? trackId = ExtractTrackId(searchQuery);
-                    if (!string.IsNullOrEmpty(trackId))
+                    // Check if input looks like a URL but is not Spotify
+                    if (IsUrl(searchQuery) && !IsSpotifyUrl(searchQuery))
                     {
-                        // Load single track
-                        await LoadTrack(trackId);
+                        ShowErrorDialog("Invalid URL", 
+                            $"The URL you entered is not a valid Spotify URL.\n\nPlease enter:\n• A Spotify track URL (e.g., https://open.spotify.com/track/...)\n• A Spotify playlist URL (e.g., https://open.spotify.com/playlist/...)\n• Or a song name to search");
+                        return;
+                    }
+
+                    // Check if input is a Spotify playlist URL
+                    string? playlistId = ExtractPlaylistId(searchQuery);
+                    if (!string.IsNullOrEmpty(playlistId))
+                    {
+                        // Load playlist tracks
+                        await LoadPlaylistTracks(playlistId);
                     }
                     else
                     {
-                        // Regular search
-                        await SearchTracks(searchQuery);
+                        // Check if input is a Spotify track URL
+                        string? trackId = ExtractTrackId(searchQuery);
+                        if (!string.IsNullOrEmpty(trackId))
+                        {
+                            // Load single track
+                            await LoadTrack(trackId);
+                        }
+                        else
+                        {
+                            // Regular search
+                            await SearchTracks(searchQuery);
+                        }
+                    }
+                }
+                else // YouTube
+                {
+                    // Check if input looks like a URL but is not YouTube
+                    if (IsUrl(searchQuery) && !IsYouTubeUrl(searchQuery))
+                    {
+                        ShowErrorDialog("Invalid URL", 
+                            $"The URL you entered is not a valid YouTube URL.\n\nPlease enter:\n• A YouTube video URL (e.g., https://www.youtube.com/watch?v=...)\n• Or a song name to search");
+                        return;
+                    }
+
+                    // Check if input is a YouTube URL
+                    string? videoId = ExtractYouTubeVideoId(searchQuery);
+                    if (!string.IsNullOrEmpty(videoId))
+                    {
+                        // Load YouTube video
+                        await LoadYouTubeVideo(videoId);
+                    }
+                    else if (IsYouTubePlaylistUrl(searchQuery))
+                    {
+                        // Show error for playlist (not supported yet)
+                        ShowErrorDialog("Invalid URL", 
+                            $"YouTube playlist URLs are not currently supported.\n\nPlease use a single YouTube video URL or search for a song name.");
+                    }
+                    else
+                    {
+                        // Regular search - treat as song name
+                        await LoadYouTubeSearch(searchQuery);
                     }
                 }
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"Error: {ex.Message}";
-                System.Windows.MessageBox.Show($"Operation failed:\n{ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowErrorDialog("Error", $"Operation failed:\n{ex.Message}");
             }
             finally
             {
@@ -303,6 +531,461 @@ namespace SpotifyToMP3.Views
             return null;
         }
 
+        private string? ExtractYouTubeVideoId(string url)
+        {
+            // Handle various YouTube URL formats:
+            // https://www.youtube.com/watch?v=dQw4w9WgXcQ
+            // https://youtu.be/dQw4w9WgXcQ
+            // https://www.youtube.com/embed/dQw4w9WgXcQ
+            // https://m.youtube.com/watch?v=dQw4w9WgXcQ
+
+            if (string.IsNullOrEmpty(url))
+                return null;
+
+            try
+            {
+                // Standard watch URL
+                var watchMatch = System.Text.RegularExpressions.Regex.Match(url, @"[?&]v=([a-zA-Z0-9_-]{11})");
+                if (watchMatch.Success)
+                {
+                    return watchMatch.Groups[1].Value;
+                }
+
+                // Short youtu.be URL
+                var shortMatch = System.Text.RegularExpressions.Regex.Match(url, @"youtu\.be/([a-zA-Z0-9_-]{11})");
+                if (shortMatch.Success)
+                {
+                    return shortMatch.Groups[1].Value;
+                }
+
+                // Embed URL
+                var embedMatch = System.Text.RegularExpressions.Regex.Match(url, @"youtube\.com/embed/([a-zA-Z0-9_-]{11})");
+                if (embedMatch.Success)
+                {
+                    return embedMatch.Groups[1].Value;
+                }
+            }
+            catch
+            {
+                // Ignore regex errors
+            }
+
+            return null;
+        }
+
+        private bool IsYouTubePlaylistUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return false;
+
+            return url.Contains("youtube.com/playlist") || url.Contains("list=");
+        }
+
+        private async Task LoadYouTubeVideo(string videoId)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                StatusText.Text = "Loading YouTube video...";
+            });
+
+            // Run the process on a background thread to avoid blocking UI
+            await Task.Run(() =>
+            {
+                // Use yt-dlp to get video info
+                string? ytDlpPath = FindYtDlp();
+                if (string.IsNullOrEmpty(ytDlpPath))
+                {
+                    throw new Exception("yt-dlp not found. Please place yt-dlp.exe in the application directory.");
+                }
+
+                // Get video information
+                string infoArgs = $"--dump-json --no-playlist \"https://www.youtube.com/watch?v={videoId}\"";
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = ytDlpPath,
+                    Arguments = infoArgs,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                System.Diagnostics.Process? process = null;
+                try
+                {
+                    process = System.Diagnostics.Process.Start(processInfo);
+                    if (process == null)
+                    {
+                        throw new Exception("Failed to start yt-dlp process.");
+                    }
+
+                    var outputBuilder = new System.Text.StringBuilder();
+                    process.OutputDataReceived += (sender, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.BeginOutputReadLine();
+                    
+                    // Wait with timeout (30 seconds)
+                    bool exited = process.WaitForExit(30000);
+                    if (!exited)
+                    {
+                        try { process.Kill(); } catch { }
+                        throw new Exception("Loading video timed out after 30 seconds.");
+                    }
+
+                    if (process.ExitCode != 0)
+                    {
+                        throw new Exception($"Failed to get video information. Please check if the URL is valid.");
+                    }
+
+                    string jsonOutput = outputBuilder.ToString();
+                    if (string.IsNullOrWhiteSpace(jsonOutput))
+                    {
+                        throw new Exception("Failed to get video information. The video may be unavailable.");
+                    }
+
+                    try
+                    {
+                        var videoInfo = JsonConvert.DeserializeObject<dynamic>(jsonOutput);
+                        string title = videoInfo?.title?.ToString() ?? "Unknown Title";
+                        string uploader = videoInfo?.uploader?.ToString() ?? "Unknown Artist";
+                        
+                        // Use YouTube's fast thumbnail URL format for instant loading
+                        string? thumbnail = null;
+                        if (!string.IsNullOrEmpty(videoId))
+                        {
+                            thumbnail = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
+                        }
+                        else
+                        {
+                            thumbnail = videoInfo?.thumbnail?.ToString();
+                        }
+                        double? duration = videoInfo?.duration != null ? (double?)videoInfo.duration : null;
+
+                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(title)} - {SanitizeFileName(uploader)}.mp3");
+                        bool alreadyExists = File.Exists(outputPath);
+
+                        var trackItem = new TrackItem
+                        {
+                            Id = videoId,
+                            Title = title,
+                            Artist = uploader,
+                            Album = "YouTube",
+                            Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
+                            ImageUrl = thumbnail,
+                            CanDownload = !alreadyExists,
+                            DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                        };
+
+                        // Update UI on the main thread
+                        Dispatcher.Invoke(() =>
+                        {
+                            _allTracks.Clear();
+                            _tracks.Clear();
+                            _allTracks.Add(trackItem);
+                            _tracks.Add(trackItem);
+
+                            StatusText.Text = $"Loaded video: {title}";
+                            FilterTextBox.Visibility = Visibility.Visible;
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception($"Failed to parse video information: {ex.Message}");
+                    }
+                }
+                finally
+                {
+                    // Ensure process is disposed
+                    try
+                    {
+                        process?.Dispose();
+                    }
+                    catch { }
+                }
+            });
+        }
+
+        private async Task LoadYouTubeSearch(string searchQuery)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                StatusText.Text = "Searching YouTube...";
+            });
+
+            // Run the process on a background thread to avoid blocking UI
+            await Task.Run(async () =>
+            {
+                // Use yt-dlp to search YouTube and get results
+                string? ytDlpPath = FindYtDlp();
+                if (string.IsNullOrEmpty(ytDlpPath))
+                {
+                    throw new Exception("yt-dlp not found. Please place yt-dlp.exe in the application directory.");
+                }
+
+                // Note: --flat-playlist is much faster than full metadata extraction
+                string searchUrl = $"ytsearch30:{searchQuery}";
+                string infoArgs = $"--flat-playlist --dump-json --no-playlist --no-warnings --quiet --no-progress \"{searchUrl}\"";
+
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = ytDlpPath,
+                    Arguments = infoArgs,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                System.Diagnostics.Process? process = null;
+                try
+                {
+                    process = System.Diagnostics.Process.Start(processInfo);
+                    if (process == null)
+                    {
+                        throw new Exception("Failed to start yt-dlp process.");
+                    }
+
+                    var outputBuilder = new System.Text.StringBuilder();
+                    var errorBuilder = new System.Text.StringBuilder();
+                    var outputComplete = new System.Threading.ManualResetEvent(false);
+                    var errorComplete = new System.Threading.ManualResetEvent(false);
+
+                    process.OutputDataReceived += (sender, e) =>
+                    {
+                        if (e.Data == null)
+                        {
+                            outputComplete.Set();
+                        }
+                        else if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) =>
+                    {
+                        if (e.Data == null)
+                        {
+                            errorComplete.Set();
+                        }
+                        else if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    // Wait for process - flat-playlist should be much faster
+                    // Use simple timeout since flat-playlist is quick
+                    bool exited = process.WaitForExit(10000); // 10 seconds max
+                    if (!exited)
+                    {
+                        try { process.Kill(); } catch { }
+                        throw new Exception("YouTube search timed out after 10 seconds.");
+                    }
+
+                    // Wait for streams to close (with shorter timeout for speed)
+                    outputComplete.WaitOne(1000);
+                    errorComplete.WaitOne(1000);
+
+                    if (process.ExitCode != 0)
+                    {
+                        string error = errorBuilder.ToString();
+                        if (string.IsNullOrWhiteSpace(error))
+                            error = outputBuilder.ToString();
+                        if (string.IsNullOrWhiteSpace(error))
+                            error = $"Process exited with code {process.ExitCode}";
+                        throw new Exception($"YouTube search failed: {error}");
+                    }
+
+                    string output = outputBuilder.ToString();
+                    if (string.IsNullOrWhiteSpace(output))
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            StatusText.Text = "No results found. Try different search terms.";
+                        });
+                        return;
+                    }
+
+                    // Parse JSON lines (each line is a separate JSON object)
+                    var tracksToAdd = new List<TrackItem>();
+                    string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    int resultCount = 0;
+                    const int maxResults = 30; // Increased to 30 results
+
+                    foreach (string line in lines)
+                    {
+                        if (resultCount >= maxResults)
+                            break;
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        try
+                        {
+                            var videoInfo = JsonConvert.DeserializeObject<dynamic>(line);
+                            if (videoInfo == null)
+                                continue;
+
+                            string? videoId = videoInfo?.id?.ToString();
+                            // With --flat-playlist, some fields might be null, so handle gracefully
+                            string title = videoInfo?.title?.ToString() ?? videoInfo?.name?.ToString() ?? "Unknown Title";
+                            string uploader = videoInfo?.uploader?.ToString() ?? videoInfo?.channel?.ToString() ?? "Unknown Artist";
+                            
+                            // Use YouTube's fast thumbnail URL format for instant loading
+                            // Format: https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg (medium quality, fast)
+                            string? thumbnail = null;
+                            if (!string.IsNullOrEmpty(videoId))
+                            {
+                                thumbnail = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
+                            }
+                            else
+                            {
+                                // Fallback to API thumbnail if videoId not available
+                                try
+                                {
+                                    thumbnail = videoInfo?.thumbnail?.ToString();
+                                    if (string.IsNullOrEmpty(thumbnail))
+                                    {
+                                        var thumbnails = videoInfo?.thumbnails;
+                                        if (thumbnails != null)
+                                        {
+                                            // Safely access thumbnails array
+                                            var thumbnailsArray = thumbnails as Newtonsoft.Json.Linq.JArray;
+                                            if (thumbnailsArray != null && thumbnailsArray.Count > 0)
+                                            {
+                                                var firstThumb = thumbnailsArray[0];
+                                                if (firstThumb != null)
+                                                {
+                                                    thumbnail = firstThumb.ToString();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                catch
+                                {
+                                    thumbnail = null;
+                                }
+                            }
+                            double? duration = null;
+                            if (videoInfo?.duration != null)
+                                duration = (double?)videoInfo.duration;
+                            else if (videoInfo?.duration_string != null)
+                            {
+                                // Try to parse duration string (e.g., "3:45")
+                                var durationStr = videoInfo.duration_string.ToString();
+                                if (System.TimeSpan.TryParse(durationStr, out TimeSpan parsedDuration))
+                                    duration = parsedDuration.TotalSeconds;
+                            }
+
+                            if (string.IsNullOrEmpty(videoId))
+                                continue;
+
+                            string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(title)} - {SanitizeFileName(uploader)}.mp3");
+                            bool alreadyExists = File.Exists(outputPath);
+
+                            var trackItem = new TrackItem
+                            {
+                                Id = videoId,
+                                Title = title,
+                                Artist = uploader,
+                                Album = "YouTube",
+                                Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
+                                ImageUrl = thumbnail,
+                                CanDownload = !alreadyExists,
+                                DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                            };
+
+                            tracksToAdd.Add(trackItem);
+                            resultCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            // Skip invalid JSON lines
+                            System.Diagnostics.Debug.WriteLine($"Failed to parse YouTube result: {ex.Message}");
+                            continue;
+                        }
+                    }
+
+                    // Update UI on the main thread
+                    Dispatcher.Invoke(() =>
+                    {
+                        _allTracks.Clear();
+                        _tracks.Clear();
+
+                        foreach (var track in tracksToAdd)
+                        {
+                            _allTracks.Add(track);
+                            _tracks.Add(track);
+                        }
+
+                        if (_tracks.Count > 0)
+                        {
+                            StatusText.Text = $"Found {_tracks.Count} YouTube videos";
+                            FilterTextBox.Visibility = Visibility.Visible;
+                        }
+                        else
+                        {
+                            StatusText.Text = "No results found. Try different search terms.";
+                        }
+                    });
+                }
+                finally
+                {
+                    // Ensure process is disposed
+                    try
+                    {
+                        process?.Dispose();
+                    }
+                    catch { }
+                }
+            });
+        }
+
+        private bool IsUrl(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return false;
+
+            return input.StartsWith("http://") || input.StartsWith("https://") || 
+                   input.StartsWith("www.") || input.Contains("://");
+        }
+
+        private bool IsSpotifyUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return false;
+
+            return url.Contains("spotify.com") || url.StartsWith("spotify:");
+        }
+
+        private bool IsYouTubeUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return false;
+
+            return url.Contains("youtube.com") || url.Contains("youtu.be");
+        }
+
+        private void ShowErrorDialog(string title, string message)
+        {
+            var errorDialog = new Views.ErrorDialog(title, message)
+            {
+                Owner = this
+            };
+            errorDialog.ShowDialog();
+        }
+
         private async Task LoadTrack(string trackId)
         {
             StatusText.Text = "Loading track...";
@@ -355,7 +1038,6 @@ namespace SpotifyToMP3.Views
 
                 // Show filter and download all button (even for single track)
                 FilterTextBox.Visibility = Visibility.Visible;
-                DownloadAllButton.Visibility = Visibility.Visible;
             }
             else
             {
@@ -436,7 +1118,6 @@ namespace SpotifyToMP3.Views
             if (_tracks.Count > 0)
             {
                 FilterTextBox.Visibility = Visibility.Visible;
-                DownloadAllButton.Visibility = Visibility.Visible;
             }
         }
 
@@ -552,199 +1233,28 @@ namespace SpotifyToMP3.Views
             }
         }
 
-        private async void DownloadAllButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_tracks.Count == 0)
-            {
-                System.Windows.MessageBox.Show("No tracks to download.", "No Tracks", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            // Use saved download path
-            string downloadFolder = _downloadPath;
-
-            // Ensure directory exists
-            if (!Directory.Exists(downloadFolder))
-            {
-                Directory.CreateDirectory(downloadFolder);
-            }
-
-            var tracksToDownload = _tracks.Where(t => t.CanDownload).ToList();
-            int totalTracks = tracksToDownload.Count;
-
-            if (totalTracks == 0)
-            {
-                System.Windows.MessageBox.Show("No tracks to download.", "No Tracks", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            int downloaded = 0;
-            int failed = 0;
-            object lockObject = new object();
-
-            // Create cancellation token source
-            _downloadCancellationTokenSource = new CancellationTokenSource();
-            _activeProcesses = new List<System.Diagnostics.Process>();
-            var cancellationToken = _downloadCancellationTokenSource.Token;
-
-            DownloadAllButton.IsEnabled = false;
-            DownloadAllButton.Visibility = Visibility.Collapsed;
-            StopDownloadButton.Visibility = Visibility.Visible;
-            StatusText.Text = $"Downloading all tracks... (0/{totalTracks})";
-
-            // Use semaphore to limit concurrent downloads (max 5 at a time for faster downloads)
-            var semaphore = new SemaphoreSlim(5, 5);
-            var downloadTasks = new List<Task>();
-
-            foreach (var track in tracksToDownload)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
-
-                track.CanDownload = false;
-                track.DownloadButtonText = "Queued...";
-
-                var task = Task.Run(async () =>
-                {
-                    await semaphore.WaitAsync(cancellationToken);
-                    try
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                            return;
-
-                        string outputPath = Path.Combine(downloadFolder, $"{SanitizeFileName(track.Title)} - {SanitizeFileName(track.Artist)}.mp3");
-
-                        // Check if file already exists
-                        if (File.Exists(outputPath))
-                        {
-                            Dispatcher.Invoke(() =>
-                            {
-                                track.CanDownload = false;
-                                track.DownloadButtonText = "Already Downloaded ✓";
-                            });
-
-                            lock (lockObject)
-                            {
-                                downloaded++;
-                            }
-
-                            Dispatcher.Invoke(() =>
-                            {
-                                StatusText.Text = $"Downloading all tracks... ({downloaded}/{totalTracks})";
-                            });
-                            return;
-                        }
-
-                        Dispatcher.Invoke(() =>
-                        {
-                            track.DownloadButtonText = "Downloading...";
-                        });
-
-                        await DownloadAndConvertTrack(track, outputPath, cancellationToken);
-
-                        if (cancellationToken.IsCancellationRequested)
-                            return;
-
-                        lock (lockObject)
-                        {
-                            downloaded++;
-                        }
-
-                        Dispatcher.Invoke(() =>
-                        {
-                            track.DownloadButtonText = "Downloaded ✓";
-                            StatusText.Text = $"Downloading all tracks... ({downloaded}/{totalTracks})";
-                        });
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            track.CanDownload = true;
-                            track.DownloadButtonText = "Cancelled";
-                        });
-                    }
-                    catch (Exception)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                            return;
-
-                        lock (lockObject)
-                        {
-                            failed++;
-                        }
-
-                        Dispatcher.Invoke(() =>
-                        {
-                            track.CanDownload = true;
-                            track.DownloadButtonText = "Download";
-                            StatusText.Text = $"Downloading all tracks... ({downloaded}/{totalTracks}) - Failed: {track.Title}";
-                        });
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                }, cancellationToken);
-
-                downloadTasks.Add(task);
-            }
-
-            try
-            {
-                // Wait for all downloads to complete or cancellation
-                await Task.WhenAll(downloadTasks);
-            }
-            catch (OperationCanceledException)
-            {
-                // Cancellation was requested
-            }
-
-            // Clean up
-            DownloadAllButton.IsEnabled = true;
-            DownloadAllButton.Visibility = Visibility.Visible;
-            StopDownloadButton.Visibility = Visibility.Collapsed;
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                StatusText.Text = $"Download cancelled! {downloaded} downloaded, {failed} failed";
-
-                // Show custom completion dialog
-                var completionDialog = new Views.CompletionDialog(
-                    "⏹️ Downloads Cancelled",
-                    $"Download cancelled!\n\nDownloaded: {downloaded}\nFailed: {failed}",
-                    false)
-                {
-                    Owner = this
-                };
-                completionDialog.ShowDialog();
-            }
-            else
-            {
-                StatusText.Text = $"Download complete! {downloaded} downloaded, {failed} failed";
-
-                // Show custom completion dialog
-                var completionDialog = new Views.CompletionDialog(
-                    "✅ Download Complete",
-                    $"Download complete!\n\nDownloaded: {downloaded}\nFailed: {failed}",
-                    true)
-                {
-                    Owner = this
-                };
-                completionDialog.ShowDialog();
-            }
-
-            _downloadCancellationTokenSource?.Dispose();
-            _downloadCancellationTokenSource = null;
-            _activeProcesses = null;
-        }
 
         private async Task DownloadAndConvertTrack(TrackItem track, string outputPath, CancellationToken cancellationToken = default)
         {
             await Task.Run(async () =>
             {
-                // Search query for YouTube
-                string searchQuery = $"{track.Title} {track.Artist}";
+                // Determine search query based on source
+                string searchQuery;
+                if (_selectedSource == "YouTube" && !string.IsNullOrEmpty(track.Id) && track.Id.Length == 11)
+                {
+                    // If it's a YouTube video ID, use it directly
+                    searchQuery = $"https://www.youtube.com/watch?v={track.Id}";
+                }
+                else if (_selectedSource == "YouTube" && track.Album == "YouTube" && track.Artist == "YouTube Search")
+                {
+                    // If it's a YouTube search query, use the title
+                    searchQuery = track.Title;
+                }
+                else
+                {
+                    // For Spotify or general search, use title and artist
+                    searchQuery = $"{track.Title} {track.Artist}";
+                }
 
                 // Use yt-dlp to download audio
                 string? ytDlpPath = FindYtDlp();
@@ -775,9 +1285,22 @@ namespace SpotifyToMP3.Views
                 string tempGuid = Guid.NewGuid().ToString();
                 string tempAudioPathPattern = Path.Combine(tempDir, $"temp_{tempGuid}");
 
+                // Determine if searchQuery is a direct URL or needs ytsearch
+                string downloadUrl;
+                if (searchQuery.StartsWith("http://") || searchQuery.StartsWith("https://"))
+                {
+                    // Direct URL - use as is
+                    downloadUrl = searchQuery;
+                }
+                else
+                {
+                    // Search query - use ytsearch
+                    downloadUrl = $"ytsearch:{searchQuery}";
+                }
+
                 // Download best audio format available (yt-dlp will choose best format)
                 // Using --no-playlist and --concurrent-fragments 4 for faster downloads
-                string downloadArgs = $"-x -f bestaudio --no-playlist --concurrent-fragments 4 --progress --newline --default-search \"ytsearch\" --output \"{tempAudioPathPattern}.%(ext)s\" \"ytsearch:{searchQuery}\"";
+                string downloadArgs = $"-x -f bestaudio --no-playlist --concurrent-fragments 4 --progress --newline --default-search \"ytsearch\" --output \"{tempAudioPathPattern}.%(ext)s\" \"{downloadUrl}\"";
 
                 // Show progress bar
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -1056,6 +1579,40 @@ namespace SpotifyToMP3.Views
                     return path;
             }
 
+            // Check bin folder - try multiple approaches
+            try
+            {
+                // Approach 1: 2 levels up (bin/Debug/net8.0-windows -> bin)
+                string? binDir1 = Directory.GetParent(currentDir)?.Parent?.FullName;
+                if (!string.IsNullOrEmpty(binDir1))
+                {
+                    foreach (var name in possibleNames)
+                    {
+                        string path = Path.Combine(binDir1, name);
+                        if (File.Exists(path))
+                            return path;
+                    }
+                }
+
+                // Approach 2: Look for a folder named "bin" in parent directories
+                DirectoryInfo? current = new DirectoryInfo(currentDir);
+                for (int i = 0; i < 5 && current != null; i++)
+                {
+                    current = current.Parent;
+                    if (current != null && current.Name.Equals("bin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var name in possibleNames)
+                        {
+                            string path = Path.Combine(current.FullName, name);
+                            if (File.Exists(path))
+                                return path;
+                        }
+                        break;
+                    }
+                }
+            }
+            catch { }
+
             // Check project root directory (3 levels up from bin/Debug/net8.0-windows)
             try
             {
@@ -1103,6 +1660,40 @@ namespace SpotifyToMP3.Views
                 if (File.Exists(path))
                     return path;
             }
+
+            // Check bin folder - try multiple approaches
+            try
+            {
+                // Approach 1: 2 levels up (bin/Debug/net8.0-windows -> bin)
+                string? binDir1 = Directory.GetParent(currentDir)?.Parent?.FullName;
+                if (!string.IsNullOrEmpty(binDir1))
+                {
+                    foreach (var name in possibleNames)
+                    {
+                        string path = Path.Combine(binDir1, name);
+                        if (File.Exists(path))
+                            return path;
+                    }
+                }
+
+                // Approach 2: Look for a folder named "bin" in parent directories
+                DirectoryInfo? current = new DirectoryInfo(currentDir);
+                for (int i = 0; i < 5 && current != null; i++)
+                {
+                    current = current.Parent;
+                    if (current != null && current.Name.Equals("bin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var name in possibleNames)
+                        {
+                            string path = Path.Combine(current.FullName, name);
+                            if (File.Exists(path))
+                                return path;
+                        }
+                        break;
+                    }
+                }
+            }
+            catch { }
 
             // Check project root directory (3 levels up from bin/Debug/net8.0-windows)
             try

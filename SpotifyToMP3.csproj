@@ -25,6 +25,9 @@
     <None Include="Assets\settings.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="Assets\filter.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <!-- Bundle yt-dlp and ffmpeg with the application -->
     <None Include="bin\yt-dlp.exe" Condition="Exists('bin\yt-dlp.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
