@@ -5,7 +5,7 @@ A C# WPF application that searches Spotify tracks and downloads them as MP3 file
 ## Quick Start
 
 ### For End Users (Pre-built Release)
-1. Download the latest release and extract it
+1. **[Download the latest release](https://github.com/Aximian/SpotifyToMP3/releases/latest)** and extract it
 2. Run `SpotifyToMP3.exe` from the extracted folder
 3. Click Settings and enter your Spotify credentials (see below)
 4. Start searching and downloading
