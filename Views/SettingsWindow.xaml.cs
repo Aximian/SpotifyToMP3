@@ -16,7 +16,7 @@ namespace SpotifyToMP3.Views
             InitializeComponent();
             DownloadPath = currentPath;
             PathTextBlock.Text = DownloadPath;
-            
+
             // Load existing credentials if provided
             if (!string.IsNullOrEmpty(clientId))
             {

@@ -39,7 +39,7 @@ namespace SpotifyToMP3.Views
             var settings = Models.AppSettings.Load();
             _downloadPath = settings.DownloadPath;
             _httpClient = new HttpClient();
-            
+
             // Load credentials from settings (with fallback to environment variables)
             if (!string.IsNullOrEmpty(settings.SpotifyClientId) && !string.IsNullOrEmpty(settings.SpotifyClientSecret))
             {
@@ -54,7 +54,7 @@ namespace SpotifyToMP3.Views
                 if (!string.IsNullOrEmpty(envClientId)) _clientId = envClientId;
                 if (!string.IsNullOrEmpty(envClientSecret)) _clientSecret = envClientSecret;
             }
-            
+
             if (!Directory.Exists(_downloadPath))
             {
                 Directory.CreateDirectory(_downloadPath);
@@ -98,7 +98,7 @@ namespace SpotifyToMP3.Views
             try
             {
                 StatusText.Text = "Connecting to Spotify...";
-                
+
                 // Get access token using client credentials flow
                 var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://accounts.spotify.com/api/token");
                 var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_clientId}:{_clientSecret}"));
@@ -107,7 +107,7 @@ namespace SpotifyToMP3.Views
 
                 var tokenResponse = await _httpClient.SendAsync(tokenRequest);
                 var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
-                
+
                 if (!tokenResponse.IsSuccessStatusCode)
                 {
                     throw new Exception($"Failed to get access token: {tokenContent}");
@@ -121,7 +121,7 @@ namespace SpotifyToMP3.Views
             catch (Exception ex)
             {
                 StatusText.Text = $"Error connecting to Spotify: {ex.Message}";
-                System.Windows.MessageBox.Show($"Failed to connect to Spotify:\n{ex.Message}\n\nPlease check your Client ID and Secret in Settings (⚙️ button).", 
+                System.Windows.MessageBox.Show($"Failed to connect to Spotify:\n{ex.Message}\n\nPlease check your Client ID and Secret in Settings (⚙️ button).",
                     "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -161,7 +161,7 @@ namespace SpotifyToMP3.Views
         {
             if (string.IsNullOrEmpty(_accessToken))
             {
-                System.Windows.MessageBox.Show("Spotify credentials not configured.\n\nPlease go to Settings (⚙️ button) and enter your Spotify Client ID and Client Secret.\n\nSee README.md for instructions on getting credentials.", 
+                System.Windows.MessageBox.Show("Spotify credentials not configured.\n\nPlease go to Settings (⚙️ button) and enter your Spotify Client ID and Client Secret.\n\nSee README.md for instructions on getting credentials.",
                     "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -318,7 +318,7 @@ namespace SpotifyToMP3.Views
                 throw new Exception($"Failed to load track: {content}");
             }
 
-                var trackResponse = JsonConvert.DeserializeObject<Models.TrackResponse>(content);
+            var trackResponse = JsonConvert.DeserializeObject<Models.TrackResponse>(content);
 
             if (trackResponse != null && trackResponse.Name != null)
             {
@@ -460,7 +460,7 @@ namespace SpotifyToMP3.Views
                 throw new Exception($"Search failed: {searchContent}");
             }
 
-                var searchResult = JsonConvert.DeserializeObject<Models.SpotifySearchResponse>(searchContent);
+            var searchResult = JsonConvert.DeserializeObject<Models.SpotifySearchResponse>(searchContent);
 
             if (searchResult?.Tracks?.Items != null && searchResult.Tracks.Items.Any())
             {
@@ -1149,7 +1149,7 @@ namespace SpotifyToMP3.Views
         {
             // Load current settings to pass to settings window
             var currentSettings = Models.AppSettings.Load();
-                var settingsWindow = new Views.SettingsWindow(_downloadPath, currentSettings.SpotifyClientId, currentSettings.SpotifyClientSecret)
+            var settingsWindow = new Views.SettingsWindow(_downloadPath, currentSettings.SpotifyClientId, currentSettings.SpotifyClientSecret)
             {
                 Owner = this
             };
@@ -1158,7 +1158,7 @@ namespace SpotifyToMP3.Views
             {
                 // Update download path
                 _downloadPath = settingsWindow.DownloadPath;
-                
+
                 // Update credentials if changed
                 bool credentialsChanged = false;
                 if (_clientId != settingsWindow.SpotifyClientId || _clientSecret != settingsWindow.SpotifyClientSecret)
@@ -1167,7 +1167,7 @@ namespace SpotifyToMP3.Views
                     _clientSecret = settingsWindow.SpotifyClientSecret ?? _clientSecret;
                     credentialsChanged = true;
                 }
-                
+
                 // Save settings
                 var settings = new Models.AppSettings
                 {
@@ -1176,7 +1176,7 @@ namespace SpotifyToMP3.Views
                     SpotifyClientSecret = _clientSecret
                 };
                 settings.Save();
-                
+
                 // Ensure directory exists
                 if (!Directory.Exists(_downloadPath))
                 {

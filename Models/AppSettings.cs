@@ -9,7 +9,7 @@ namespace SpotifyToMP3.Models
         public string DownloadPath { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
             "SpotifyDownloads");
-        
+
         public string? SpotifyClientId { get; set; }
         public string? SpotifyClientSecret { get; set; }
 
