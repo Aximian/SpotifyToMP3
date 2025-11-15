@@ -53,6 +53,7 @@ A C# WPF application that searches Spotify tracks and downloads them as MP3 file
 
 ### Building Standalone Executable
 
+#### Windows
 1. Place `yt-dlp.exe`, `ffmpeg.exe`, and `ffprobe.exe` in the `bin` folder
 2. Build:
    ```
@@ -64,8 +65,15 @@ A C# WPF application that searches Spotify tracks and downloads them as MP3 file
    copy bin\ffmpeg.exe bin\Release\net8.0-windows\win-x64\publish\
    copy bin\ffprobe.exe bin\Release\net8.0-windows\win-x64\publish\
    ```
+4. Executable location: `bin\Release\net8.0-windows\win-x64\publish\SpotifyToMP3.exe`
 
-Executable location: `bin\Release\net8.0-windows\win-x64\publish\`
+#### macOS
+**Note:** WPF is Windows-only. For macOS support, the UI needs to be ported to a cross-platform framework like Avalonia UI or .NET MAUI.
+
+Currently, macOS builds are not available. To add macOS support:
+1. Port the UI to Avalonia UI (recommended - similar to WPF)
+2. Or use .NET MAUI for cross-platform support
+3. Update build scripts to include macOS runtime identifier: `osx-x64` or `osx-arm64`
 
 ## Troubleshooting
 
