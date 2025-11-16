@@ -391,6 +391,30 @@ namespace MediaConverterToMP3.Views
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private async void ContinueButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            var track = button?.Tag as TrackItem;
+
+            if (track == null) return;
+
+            // Call the ContinueDownload method from DownloadOperations
+            // We need to access it through the MainWindow instance
+            // Since this is a partial class, we can call it directly
+            await ContinueDownload(track);
+        }
+
+        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            var track = button?.Tag as TrackItem;
+
+            if (track == null) return;
+
+            // Call the ClearStoppedDownload method from DownloadOperations
+            ClearStoppedDownload(track);
+        }
     }
 }
 

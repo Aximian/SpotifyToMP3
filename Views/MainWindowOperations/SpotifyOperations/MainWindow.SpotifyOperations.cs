@@ -105,8 +105,9 @@ namespace MediaConverterToMP3.Views
 
                 StatusText.Text = $"Loaded track: {trackItem.Title}";
 
-                // Show filter and download all button (even for single track)
+                // Show filter only (no download all for single tracks)
                 FilterTextBox.Visibility = Visibility.Visible;
+                DownloadAllButton.Visibility = Visibility.Collapsed;
             }
             else
             {
@@ -185,11 +186,18 @@ namespace MediaConverterToMP3.Views
 
             StatusText.Text = $"Loaded {_tracks.Count} tracks from playlist";
 
-            // Show filter and download all button
+            // Show filter and download all button (only for playlists, not for search)
             if (_tracks.Count > 0)
             {
                 FilterTextBox.Visibility = Visibility.Visible;
-                DownloadAllButton.Visibility = Visibility.Visible;
+                if (_isSpotifyPlaylist)
+                {
+                    DownloadAllButton.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    DownloadAllButton.Visibility = Visibility.Collapsed;
+                }
             }
         }
 

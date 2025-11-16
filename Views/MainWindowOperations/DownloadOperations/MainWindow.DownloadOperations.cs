@@ -28,6 +28,27 @@ namespace MediaConverterToMP3.Views
                 return;
             }
 
+            // Don't show Continue/Clear on individual buttons when Download All is active
+            if (_isDownloadAllStopped && _isSpotifyPlaylist && _selectedSource == "Spotify")
+            {
+                StatusText.Text = "Use Continue All or Clear All buttons to manage stopped downloads.";
+                return;
+            }
+
+            // Handle Continue button click
+            if (track.ShowContinueButton)
+            {
+                await ContinueDownload(track);
+                return;
+            }
+
+            // Handle Clear button click
+            if (track.ShowClearButton)
+            {
+                ClearStoppedDownload(track);
+                return;
+            }
+
             // If already downloading, stop it
             if (track.IsDownloading && _downloadCancellationTokenSource != null)
             {
@@ -53,11 +74,74 @@ namespace MediaConverterToMP3.Views
                     }
                 }
 
+                // Save cache entry for stopped download
+                var stopCache = DownloadCache.Load();
+                
+                // Get or create cache entry
+                var stopCacheEntry = stopCache.GetEntry(track.Id);
+                if (stopCacheEntry == null)
+                {
+                    // Create new cache entry if it doesn't exist
+                    string stopExtension = _selectedSource == "YouTube" && _selectedFormat == "MP4" ? ".mp4" : ".mp3";
+                    string stopOutputPath = Path.Combine(_downloadPath, $"{FileUtilities.SanitizeFileName(track.Title)} - {FileUtilities.SanitizeFileName(track.Artist)}{stopExtension}");
+                    
+                    // Determine search query
+                    string stopSearchQuery;
+                    if (_selectedSource == "YouTube" && !string.IsNullOrEmpty(track.Id) && track.Id.Length == 11)
+                    {
+                        stopSearchQuery = $"https://www.youtube.com/watch?v={track.Id}";
+                    }
+                    else if (_selectedSource == "YouTube" && track.Album == "YouTube" && track.Artist == "YouTube Search")
+                    {
+                        stopSearchQuery = track.Title;
+                    }
+                    else
+                    {
+                        stopSearchQuery = $"{track.Title} {track.Artist}";
+                    }
+                    
+                    string stopDownloadUrl = stopSearchQuery.StartsWith("http://") || stopSearchQuery.StartsWith("https://")
+                        ? stopSearchQuery
+                        : $"ytsearch:{stopSearchQuery}";
+                    
+                    string? stopOutputDir = Path.GetDirectoryName(stopOutputPath);
+                    string stopTempDir = stopOutputDir ?? Path.GetTempPath();
+                    string stopTempGuid = Guid.NewGuid().ToString();
+                    string stopTempPathPattern = Path.Combine(stopTempDir, $"temp_{stopTempGuid}");
+                    
+                    stopCacheEntry = new DownloadCacheEntry
+                    {
+                        TrackId = track.Id,
+                        TrackTitle = track.Title,
+                        TrackArtist = track.Artist,
+                        OutputPath = stopOutputPath,
+                        TempFilePattern = stopTempPathPattern,
+                        DownloadUrl = stopDownloadUrl,
+                        Source = _selectedSource,
+                        Format = _selectedFormat,
+                        Progress = track.DownloadProgress,
+                        Timestamp = DateTime.Now
+                    };
+                }
+                else
+                {
+                    // Update existing cache entry with current progress
+                    stopCacheEntry.Progress = track.DownloadProgress;
+                }
+                
+                stopCache.SetEntry(track.Id, stopCacheEntry);
+
+                // Update track properties to show Continue/Clear buttons
+                // Set these in the correct order to ensure UI updates
                 track.IsDownloading = false;
-                track.CanDownload = true;
-                track.DownloadButtonText = "Download";
-                track.ShowProgress = false;
-                StatusText.Text = "Download cancelled successfully.";
+                track.DownloadButtonText = ""; // Hide main button first
+                track.CanDownload = false;
+                track.HasStoppedDownload = true;
+                track.ShowContinueButton = true;
+                track.ShowClearButton = true;
+                track.ShowProgress = true; // Keep progress visible to show where we stopped
+                
+                StatusText.Text = $"Download stopped ({track.DownloadProgress:F0}%). Click Continue to resume or Clear to start over.";
 
                 _downloadCancellationTokenSource?.Dispose();
                 _downloadCancellationTokenSource = null;
@@ -86,8 +170,49 @@ namespace MediaConverterToMP3.Views
             {
                 track.CanDownload = false;
                 track.DownloadButtonText = "Already Downloaded ✓";
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
                 StatusText.Text = $"File already exists: {track.Title}";
                 return;
+            }
+
+            // Check cache for partial download
+            var cache = DownloadCache.Load();
+            var cacheEntry = cache.GetEntry(track.Id);
+            if (cacheEntry != null && cacheEntry.Source == _selectedSource && cacheEntry.Format == _selectedFormat)
+            {
+                // Check if temp file still exists
+                bool tempFileExists = false;
+                if (!string.IsNullOrEmpty(cacheEntry.TempFilePattern))
+                {
+                    string? dir = Path.GetDirectoryName(cacheEntry.TempFilePattern);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    {
+                        string pattern = Path.GetFileName(cacheEntry.TempFilePattern) + ".*";
+                        var files = Directory.GetFiles(dir, pattern);
+                        tempFileExists = files.Length > 0;
+                    }
+                }
+
+                if (tempFileExists)
+                {
+                    // Show Continue/Clear buttons
+                    track.HasStoppedDownload = true;
+                    track.ShowContinueButton = true;
+                    track.ShowClearButton = true;
+                    track.DownloadButtonText = "";
+                    track.CanDownload = false;
+                    track.DownloadProgress = cacheEntry.Progress;
+                    track.ShowProgress = true;
+                    StatusText.Text = $"Found partial download ({cacheEntry.Progress:F0}%). Click Continue to resume or Clear to start over.";
+                    return;
+                }
+                else
+                {
+                    // Temp file doesn't exist, clear cache entry
+                    cache.ClearEntry(track.Id);
+                }
             }
 
             try
@@ -98,6 +223,9 @@ namespace MediaConverterToMP3.Views
                 track.CanDownload = false;
                 track.IsDownloading = true;
                 track.DownloadButtonText = "⏹️ Stop";
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
                 _currentDownloadingTrack = track;
                 _displayedProgressPercent = 0;
 
@@ -153,8 +281,15 @@ namespace MediaConverterToMP3.Views
                 track.IsDownloading = false;
                 track.ShowProgress = false; // Hide progress bar
                 track.DownloadProgress = 0; // Reset progress
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
                 _downloadCancellationTokenSource?.Dispose();
                 _downloadCancellationTokenSource = null;
+
+                // Clear cache entry on successful completion
+                var completedCache = DownloadCache.Load();
+                completedCache.ClearEntry(track.Id);
 
                 track.DownloadButtonText = "Downloaded ✓";
                 track.CanDownload = false;
@@ -176,10 +311,15 @@ namespace MediaConverterToMP3.Views
                 // Check if it was a cancellation (not an error)
                 if (ex is OperationCanceledException || ex is TaskCanceledException)
                 {
-                    track.CanDownload = true;
-                    track.DownloadButtonText = "Download";
-                    track.ShowProgress = false;
-                    track.DownloadProgress = 0;
+                    // Don't reset here - the stop handler above already sets Continue/Clear buttons
+                    // Just ensure state is correct
+                    if (!track.HasStoppedDownload)
+                    {
+                        track.CanDownload = true;
+                        track.DownloadButtonText = "Download";
+                        track.ShowProgress = false;
+                        track.DownloadProgress = 0;
+                    }
                     StatusText.Text = "Download cancelled successfully.";
                 }
                 else
@@ -207,7 +347,7 @@ namespace MediaConverterToMP3.Views
             }
         }
 
-        private async Task DownloadAndConvertTrack(TrackItem track, string outputPath, CancellationToken cancellationToken = default)
+        private async Task DownloadAndConvertTrack(TrackItem track, string outputPath, CancellationToken cancellationToken = default, DownloadCacheEntry? existingCacheEntry = null)
         {
             await Task.Run(async () =>
             {
@@ -378,7 +518,9 @@ namespace MediaConverterToMP3.Views
 
                 // Step 1: Download based on format
                 string tempDir = outputDir ?? Path.GetTempPath();
-                string tempGuid = Guid.NewGuid().ToString();
+                string tempGuid = existingCacheEntry != null && !string.IsNullOrEmpty(existingCacheEntry.TempFilePattern) 
+                    ? Path.GetFileNameWithoutExtension(existingCacheEntry.TempFilePattern).Replace("temp_", "") 
+                    : Guid.NewGuid().ToString();
                 string tempPathPattern = Path.Combine(tempDir, $"temp_{tempGuid}");
 
                 // Determine if searchQuery is a direct URL or needs ytsearch
@@ -393,6 +535,31 @@ namespace MediaConverterToMP3.Views
                     // Search query - use ytsearch
                     downloadUrl = $"ytsearch:{searchQuery}";
                 }
+
+                // Create or update cache entry
+                var cache = DownloadCache.Load();
+                var cacheEntry = existingCacheEntry ?? new DownloadCacheEntry
+                {
+                    TrackId = track.Id,
+                    TrackTitle = track.Title,
+                    TrackArtist = track.Artist,
+                    OutputPath = outputPath,
+                    TempFilePattern = tempPathPattern,
+                    DownloadUrl = downloadUrl,
+                    Source = _selectedSource,
+                    Format = _selectedFormat,
+                    Progress = 0,
+                    Timestamp = DateTime.Now
+                };
+                
+                // Update cache entry if it exists
+                if (existingCacheEntry != null)
+                {
+                    cacheEntry.TempFilePattern = tempPathPattern;
+                    cacheEntry.DownloadUrl = downloadUrl;
+                }
+                
+                cache.SetEntry(track.Id, cacheEntry);
 
                 // Determine format and download arguments
                 bool isMP4 = _selectedSource == "YouTube" && _selectedFormat == "MP4";
@@ -463,6 +630,15 @@ namespace MediaConverterToMP3.Views
                                     bool isMP4Local = _selectedSource == "YouTube" && _selectedFormat == "MP4";
                                     double totalProgress = isMP4Local ? progress : (progress * 0.5); // MP4: 100%, MP3: 50% (conversion is other 50%)
                                     track.DownloadProgress = totalProgress;
+                                    
+                                    // Update cache with progress
+                                    var progressCache = DownloadCache.Load();
+                                    var progressEntry = progressCache.GetEntry(track.Id);
+                                    if (progressEntry != null)
+                                    {
+                                        progressEntry.Progress = totalProgress;
+                                        progressCache.SetEntry(track.Id, progressEntry);
+                                    }
                                     // Don't update StatusText here - let the timer handle progressive display
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
@@ -483,7 +659,17 @@ namespace MediaConverterToMP3.Views
                                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                                 {
                                     bool isMP4Local = _selectedSource == "YouTube" && _selectedFormat == "MP4";
-                                    track.DownloadProgress = isMP4Local ? progress : (progress * 0.5); // MP4: 100%, MP3: 50% (conversion is other 50%)
+                                    double totalProgress = isMP4Local ? progress : (progress * 0.5); // MP4: 100%, MP3: 50% (conversion is other 50%)
+                                    track.DownloadProgress = totalProgress;
+                                    
+                                    // Update cache with progress
+                                    var progressCache = DownloadCache.Load();
+                                    var progressEntry = progressCache.GetEntry(track.Id);
+                                    if (progressEntry != null)
+                                    {
+                                        progressEntry.Progress = totalProgress;
+                                        progressCache.SetEntry(track.Id, progressEntry);
+                                    }
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
                         }
@@ -783,6 +969,15 @@ namespace MediaConverterToMP3.Views
                                 {
                                     double totalProgress = 50 + conversionProgress; // 50% (download) + conversion progress
                                     track.DownloadProgress = totalProgress;
+                                    
+                                    // Update cache with progress
+                                    var progressCache = DownloadCache.Load();
+                                    var progressEntry = progressCache.GetEntry(track.Id);
+                                    if (progressEntry != null)
+                                    {
+                                        progressEntry.Progress = totalProgress;
+                                        progressCache.SetEntry(track.Id, progressEntry);
+                                    }
                                     // Don't update StatusText here - let the timer handle progressive display
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
@@ -890,24 +1085,74 @@ namespace MediaConverterToMP3.Views
                 catch { }
 
                 _isDownloadingAll = false;
-                DownloadAllButton.Content = "Download All";
-                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
-                StatusText.Text = "Download cancelled successfully.";
-
-                // Reset all queued/downloading tracks (but keep already downloaded ones)
-                foreach (var track in _tracks)
+                
+                // For Spotify Download All, show Continue/Clear All buttons instead of resetting
+                if (_selectedSource == "Spotify" && _isSpotifyPlaylist)
                 {
-                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                    // Save cache for stopped tracks and preserve progress
+                    var cache = DownloadCache.Load();
+                    foreach (var track in _tracks)
                     {
-                        // Keep as downloaded
-                        continue;
+                        if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                        {
+                            continue;
+                        }
+                        else if (track.DownloadButtonText == "Downloading..." || track.DownloadButtonText == "Queued...")
+                        {
+                            // Save cache for stopped tracks with current progress
+                            var cacheEntry = cache.GetEntry(track.Id);
+                            if (cacheEntry != null)
+                            {
+                                cacheEntry.Progress = track.DownloadProgress;
+                                cache.SetEntry(track.Id, cacheEntry);
+                            }
+                            // Don't show Continue/Clear on individual buttons when Download All is active
+                            track.HasStoppedDownload = false;
+                            track.ShowContinueButton = false;
+                            track.ShowClearButton = false;
+                            track.DownloadButtonText = "Queued...";
+                            track.CanDownload = false;
+                            // Preserve progress - don't reset it
+                            track.ShowProgress = true;
+                        }
                     }
-                    else
+                    
+                    // Hide Download All button and show Continue/Clear All buttons
+                    _isDownloadAllStopped = true;
+                    DownloadAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                    ContinueAllButton.Visibility = System.Windows.Visibility.Visible;
+                    ClearAllButton.Visibility = System.Windows.Visibility.Visible;
+                    StatusText.Text = "Download All stopped. Click Continue All to resume or Clear All to start over.";
+                }
+                else
+                {
+                    _isDownloadAllStopped = false;
+                    DownloadAllButton.Content = "Download All";
+                    DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                    ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                    ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                    StatusText.Text = "Download cancelled successfully.";
+
+                    // Reset all queued/downloading tracks (but keep already downloaded ones)
+                    foreach (var track in _tracks)
                     {
-                        // Reset to Download
-                        track.IsDownloading = false;
-                        track.CanDownload = true;
-                        track.DownloadButtonText = "Download";
+                        if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                        {
+                            // Keep as downloaded
+                            continue;
+                        }
+                        else
+                        {
+                            // Reset to Download
+                            track.IsDownloading = false;
+                            track.CanDownload = true;
+                            track.DownloadButtonText = "Download";
+                            track.HasStoppedDownload = false;
+                            track.ShowContinueButton = false;
+                            track.ShowClearButton = false;
+                            track.ShowProgress = false;
+                            track.DownloadProgress = 0;
+                        }
                     }
                 }
 
@@ -926,8 +1171,12 @@ namespace MediaConverterToMP3.Views
             {
                 _downloadAllCancellationTokenSource = new CancellationTokenSource();
                 _isDownloadingAll = true;
+                _isDownloadAllStopped = false;
                 DownloadAllButton.Content = "⏹️ Stop";
                 DownloadAllButton.Style = (System.Windows.Style)FindResource("StopButtonStyle");
+                DownloadAllButton.Visibility = System.Windows.Visibility.Visible;
+                ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
 
                 var tracksToDownload = _tracks?.Where(t => t != null && t.CanDownload).ToList() ?? new List<TrackItem>();
                 int totalTracks = tracksToDownload.Count;
@@ -937,8 +1186,12 @@ namespace MediaConverterToMP3.Views
                 {
                     StatusText.Text = "No tracks to download.";
                     _isDownloadingAll = false;
+                    _isDownloadAllStopped = false;
                     DownloadAllButton.Content = "Download All";
                     DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                    DownloadAllButton.Visibility = System.Windows.Visibility.Visible;
+                    ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                    ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
                     _downloadAllCancellationTokenSource?.Dispose();
                     _downloadAllCancellationTokenSource = null;
                     return;
@@ -998,7 +1251,22 @@ namespace MediaConverterToMP3.Views
                         track.IsDownloading = false; // Keep false so no stop button appears
                         track.DownloadButtonText = "Downloading...";
                         _currentDownloadingTrack = track; // Set for progress tracking
-                        _displayedProgressPercent = 0;
+                        
+                        // Preserve progress from cache if resuming
+                        var resumeCache = DownloadCache.Load();
+                        DownloadCacheEntry? resumeCacheEntry = resumeCache.GetEntry(track.Id);
+                        if (resumeCacheEntry != null && resumeCacheEntry.Progress > 0)
+                        {
+                            track.DownloadProgress = resumeCacheEntry.Progress;
+                            track.ShowProgress = true;
+                            _displayedProgressPercent = (int)resumeCacheEntry.Progress;
+                        }
+                        else
+                        {
+                            _displayedProgressPercent = 0;
+                            track.DownloadProgress = 0;
+                            resumeCacheEntry = null; // No cache entry, start fresh
+                        }
 
                         string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
                         string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
@@ -1016,9 +1284,11 @@ namespace MediaConverterToMP3.Views
                             break;
                         }
 
-                        StatusText.Text = $"Downloading {downloadedCount + 1}/{totalTracks}: {track.Title} (0%)";
+                        int currentProgress = (int)track.DownloadProgress;
+                        StatusText.Text = $"Downloading {downloadedCount + 1}/{totalTracks}: {track.Title} ({currentProgress}%)";
 
-                        await DownloadAndConvertTrack(track, outputPath, _downloadAllCancellationTokenSource.Token);
+                        // Pass cache entry if resuming to continue from where it left off
+                        await DownloadAndConvertTrack(track, outputPath, _downloadAllCancellationTokenSource.Token, resumeCacheEntry);
 
                         downloadedCount++;
                         track.IsDownloading = false;
@@ -1123,31 +1393,441 @@ namespace MediaConverterToMP3.Views
                 _currentDownloadingTrack = null;
                 _displayedProgressPercent = 0;
                 
-                DownloadAllButton.Content = "Download All";
-                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
-
-                // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
-                foreach (var track in _tracks)
+                // Only reset if not stopped (if stopped, Continue/Clear All buttons are shown and progress is preserved)
+                if (!_isDownloadAllStopped)
                 {
-                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                    DownloadAllButton.Content = "Download All";
+                    DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                    ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                    ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
+
+                    // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
+                    foreach (var track in _tracks)
                     {
-                        // Keep as downloaded
-                        continue;
-                    }
-                    else if (track.DownloadButtonText == "Queued..." || track.DownloadButtonText == "Downloading..." || track.IsDownloading)
-                    {
-                        // Reset to Download
-                        track.IsDownloading = false;
-                        track.CanDownload = true;
-                        track.DownloadButtonText = "Download";
-                        track.ShowProgress = false;
-                        track.DownloadProgress = 0;
+                        if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                        {
+                            // Keep as downloaded
+                            continue;
+                        }
+                        else if (track.DownloadButtonText == "Queued..." || track.DownloadButtonText == "Downloading..." || track.IsDownloading)
+                        {
+                            // Reset to Download
+                            track.IsDownloading = false;
+                            track.CanDownload = true;
+                            track.DownloadButtonText = "Download";
+                            track.ShowProgress = false;
+                            track.DownloadProgress = 0;
+                        }
                     }
                 }
+                // If stopped, progress is preserved and Continue/Clear All buttons are shown (handled in stop handler)
 
                 _downloadAllCancellationTokenSource?.Dispose();
                 _downloadAllCancellationTokenSource = null;
             }
+        }
+
+        private async Task ContinueDownload(TrackItem track)
+        {
+            var cache = DownloadCache.Load();
+            var cacheEntry = cache.GetEntry(track.Id);
+            
+            if (cacheEntry == null)
+            {
+                // No cache entry, start fresh
+                ClearStoppedDownload(track);
+                // Start a fresh download
+                string freshExtension = _selectedSource == "YouTube" && _selectedFormat == "MP4" ? ".mp4" : ".mp3";
+                string freshOutputPath = Path.Combine(_downloadPath, $"{FileUtilities.SanitizeFileName(track.Title)} - {FileUtilities.SanitizeFileName(track.Artist)}{freshExtension}");
+                
+                // Check if file already exists
+                if (File.Exists(freshOutputPath))
+                {
+                    track.CanDownload = false;
+                    track.DownloadButtonText = "Already Downloaded ✓";
+                    track.HasStoppedDownload = false;
+                    track.ShowContinueButton = false;
+                    track.ShowClearButton = false;
+                    StatusText.Text = $"File already exists: {track.Title}";
+                    return;
+                }
+                
+                // Start download
+                try
+                {
+                    _downloadCancellationTokenSource = new CancellationTokenSource();
+                    track.CanDownload = false;
+                    track.IsDownloading = true;
+                    track.DownloadButtonText = "⏹️ Stop";
+                    track.HasStoppedDownload = false;
+                    track.ShowContinueButton = false;
+                    track.ShowClearButton = false;
+                    _currentDownloadingTrack = track;
+                    _displayedProgressPercent = 0;
+
+                    _progressTimer = new System.Windows.Threading.DispatcherTimer();
+                    _progressTimer.Interval = TimeSpan.FromMilliseconds(50);
+                    _progressTimer.Tick += (s, e) =>
+                    {
+                        if (_currentDownloadingTrack != null)
+                        {
+                            double actualProgress = _currentDownloadingTrack.DownloadProgress;
+                            int actualPercent = (int)Math.Round(actualProgress);
+                            if (_displayedProgressPercent < actualPercent)
+                            {
+                                int gap = actualPercent - _displayedProgressPercent;
+                                int increment = gap > 10 ? 5 : (gap > 5 ? 3 : (gap > 2 ? 2 : 1));
+                                _displayedProgressPercent = Math.Min(_displayedProgressPercent + increment, actualPercent);
+                                StatusText.Text = $"Downloading: {_currentDownloadingTrack.Title} - {_currentDownloadingTrack.Artist} ({_displayedProgressPercent}%)";
+                            }
+                            else if (_displayedProgressPercent >= 100)
+                            {
+                                _progressTimer?.Stop();
+                            }
+                        }
+                    };
+                    _progressTimer.Start();
+
+                    StatusText.Text = $"Downloading: {track.Title} - {track.Artist} (0%)";
+                    await DownloadAndConvertTrack(track, freshOutputPath, _downloadCancellationTokenSource.Token);
+
+                    _progressTimer?.Stop();
+                    _progressTimer = null;
+                    _currentDownloadingTrack = null;
+                    _displayedProgressPercent = 0;
+
+                    track.IsDownloading = false;
+                    track.ShowProgress = false;
+                    track.DownloadProgress = 0;
+                    track.HasStoppedDownload = false;
+                    track.ShowContinueButton = false;
+                    track.ShowClearButton = false;
+                    _downloadCancellationTokenSource?.Dispose();
+                    _downloadCancellationTokenSource = null;
+
+                    var completedCache = DownloadCache.Load();
+                    completedCache.ClearEntry(track.Id);
+
+                    track.DownloadButtonText = "Downloaded ✓";
+                    track.CanDownload = false;
+                    StatusText.Text = $"Successfully downloaded: {track.Title}";
+                }
+                catch (Exception ex)
+                {
+                    _progressTimer?.Stop();
+                    _progressTimer = null;
+                    _currentDownloadingTrack = null;
+                    _displayedProgressPercent = 0;
+
+                    track.IsDownloading = false;
+                    _downloadCancellationTokenSource?.Dispose();
+                    _downloadCancellationTokenSource = null;
+
+                    if (ex is OperationCanceledException || ex is TaskCanceledException)
+                    {
+                        if (!track.HasStoppedDownload)
+                        {
+                            track.CanDownload = true;
+                            track.DownloadButtonText = "Download";
+                            track.ShowProgress = false;
+                            track.DownloadProgress = 0;
+                        }
+                        StatusText.Text = "Download cancelled successfully.";
+                    }
+                    else
+                    {
+                        track.CanDownload = true;
+                        track.DownloadButtonText = "Download";
+                        track.ShowProgress = false;
+                        track.DownloadProgress = 0;
+                        track.HasStoppedDownload = false;
+                        track.ShowContinueButton = false;
+                        track.ShowClearButton = false;
+                        StatusText.Text = $"Download failed: {ex.Message}";
+
+                        var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
+                        {
+                            Owner = this
+                        };
+                        errorDialog.ShowDialog();
+                    }
+                }
+                return;
+            }
+
+            // Use saved download path - determine extension based on source and format
+            string extension = _selectedSource == "YouTube" && _selectedFormat == "MP4" ? ".mp4" : ".mp3";
+            string outputPath = Path.Combine(_downloadPath, $"{FileUtilities.SanitizeFileName(track.Title)} - {FileUtilities.SanitizeFileName(track.Artist)}{extension}");
+
+            // Check if file already exists
+            if (File.Exists(outputPath))
+            {
+                track.CanDownload = false;
+                track.DownloadButtonText = "Already Downloaded ✓";
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
+                cache.ClearEntry(track.Id);
+                StatusText.Text = $"File already exists: {track.Title}";
+                return;
+            }
+
+            try
+            {
+                // Initialize cancellation token source for this download
+                _downloadCancellationTokenSource = new CancellationTokenSource();
+
+                track.CanDownload = false;
+                track.IsDownloading = true;
+                track.DownloadButtonText = "⏹️ Stop";
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
+                _currentDownloadingTrack = track;
+                
+                // Preserve progress from cache and ensure progress bar is visible
+                if (cacheEntry.Progress > 0)
+                {
+                    track.DownloadProgress = cacheEntry.Progress;
+                    track.ShowProgress = true; // Show progress bar with cached progress
+                    _displayedProgressPercent = (int)cacheEntry.Progress;
+                }
+                else
+                {
+                    track.DownloadProgress = 0;
+                    track.ShowProgress = true; // Show progress bar (will start from 0)
+                    _displayedProgressPercent = 0;
+                }
+
+                // Start progressive percentage timer
+                _progressTimer = new System.Windows.Threading.DispatcherTimer();
+                _progressTimer.Interval = TimeSpan.FromMilliseconds(50);
+                _progressTimer.Tick += (s, e) =>
+                {
+                    if (_currentDownloadingTrack != null)
+                    {
+                        double actualProgress = _currentDownloadingTrack.DownloadProgress;
+                        int actualPercent = (int)Math.Round(actualProgress);
+
+                        if (_displayedProgressPercent < actualPercent)
+                        {
+                            int gap = actualPercent - _displayedProgressPercent;
+                            int increment = gap > 10 ? 5 : (gap > 5 ? 3 : (gap > 2 ? 2 : 1));
+                            _displayedProgressPercent = Math.Min(_displayedProgressPercent + increment, actualPercent);
+                            StatusText.Text = $"Downloading: {_currentDownloadingTrack.Title} - {_currentDownloadingTrack.Artist} ({_displayedProgressPercent}%)";
+                        }
+                        else if (_displayedProgressPercent >= 100)
+                        {
+                            _progressTimer?.Stop();
+                        }
+                    }
+                };
+                _progressTimer.Start();
+
+                StatusText.Text = $"Resuming download: {track.Title} - {track.Artist} ({_displayedProgressPercent}%)";
+
+                // Continue download with cached info
+                await DownloadAndConvertTrack(track, outputPath, _downloadCancellationTokenSource.Token, cacheEntry);
+
+                // Stop progress timer
+                _progressTimer?.Stop();
+                _progressTimer = null;
+                _currentDownloadingTrack = null;
+                _displayedProgressPercent = 0;
+
+                // Reset download state
+                track.IsDownloading = false;
+                track.ShowProgress = false;
+                track.DownloadProgress = 0;
+                track.HasStoppedDownload = false;
+                track.ShowContinueButton = false;
+                track.ShowClearButton = false;
+                _downloadCancellationTokenSource?.Dispose();
+                _downloadCancellationTokenSource = null;
+
+                // Clear cache entry on successful completion
+                cache.ClearEntry(track.Id);
+
+                track.DownloadButtonText = "Downloaded ✓";
+                track.CanDownload = false;
+                StatusText.Text = $"Successfully downloaded: {track.Title}";
+            }
+            catch (Exception ex)
+            {
+                // Stop progress timer
+                _progressTimer?.Stop();
+                _progressTimer = null;
+                _currentDownloadingTrack = null;
+                _displayedProgressPercent = 0;
+
+                // Reset download state
+                track.IsDownloading = false;
+                _downloadCancellationTokenSource?.Dispose();
+                _downloadCancellationTokenSource = null;
+
+                // Check if it was a cancellation
+                if (ex is OperationCanceledException || ex is TaskCanceledException)
+                {
+                    // Save cache for stopped download
+                    var stoppedCache = DownloadCache.Load();
+                    var stoppedEntry = stoppedCache.GetEntry(track.Id);
+                    if (stoppedEntry != null)
+                    {
+                        stoppedEntry.Progress = track.DownloadProgress;
+                        stoppedCache.SetEntry(track.Id, stoppedEntry);
+                    }
+                    track.HasStoppedDownload = true;
+                    track.ShowContinueButton = true;
+                    track.ShowClearButton = true;
+                    track.DownloadButtonText = "";
+                    track.CanDownload = false;
+                    StatusText.Text = "Download stopped. Click Continue to resume or Clear to start over.";
+                }
+                else
+                {
+                    track.CanDownload = true;
+                    track.DownloadButtonText = "Download";
+                    track.ShowProgress = false;
+                    track.DownloadProgress = 0;
+                    track.HasStoppedDownload = false;
+                    track.ShowContinueButton = false;
+                    track.ShowClearButton = false;
+                    StatusText.Text = $"Download failed: {ex.Message}";
+
+                    var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
+                    {
+                        Owner = this
+                    };
+                    errorDialog.ShowDialog();
+                }
+            }
+        }
+
+        private void ClearStoppedDownload(TrackItem track)
+        {
+            var cache = DownloadCache.Load();
+            var cacheEntry = cache.GetEntry(track.Id);
+            
+            if (cacheEntry != null)
+            {
+                // Try to delete temp files
+                try
+                {
+                    if (!string.IsNullOrEmpty(cacheEntry.TempFilePattern))
+                    {
+                        string? dir = Path.GetDirectoryName(cacheEntry.TempFilePattern);
+                        if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                        {
+                            string pattern = Path.GetFileName(cacheEntry.TempFilePattern) + ".*";
+                            var files = Directory.GetFiles(dir, pattern);
+                            foreach (var file in files)
+                            {
+                                try
+                                {
+                                    File.Delete(file);
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Clear cache entry
+                cache.ClearEntry(track.Id);
+            }
+
+            // Reset track state
+            track.HasStoppedDownload = false;
+            track.ShowContinueButton = false;
+            track.ShowClearButton = false;
+            track.DownloadButtonText = "Download";
+            track.CanDownload = true;
+            track.ShowProgress = false;
+            track.DownloadProgress = 0;
+            StatusText.Text = "Cleared stopped download. Ready to start fresh.";
+        }
+
+        private void ContinueAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isDownloadAllStopped || !_isSpotifyPlaylist || _selectedSource != "Spotify")
+                return;
+
+            _isDownloadAllStopped = false;
+            ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+            ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
+            DownloadAllButton.Visibility = System.Windows.Visibility.Visible;
+
+            // Resume Download All by calling the handler again (fire and forget since it's async void)
+            DownloadAllButton_Click(sender, e);
+        }
+
+        private void ClearAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isDownloadAllStopped || !_isSpotifyPlaylist || _selectedSource != "Spotify")
+                return;
+
+            var cache = DownloadCache.Load();
+            
+            // Clear cache and reset all stopped tracks
+            foreach (var track in _tracks)
+            {
+                if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                {
+                    continue;
+                }
+                else if (track.DownloadButtonText == "Queued..." || track.ShowProgress)
+                {
+                    // Clear cache entry
+                    var cacheEntry = cache.GetEntry(track.Id);
+                    if (cacheEntry != null)
+                    {
+                        // Try to delete temp files
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(cacheEntry.TempFilePattern))
+                            {
+                                string? dir = Path.GetDirectoryName(cacheEntry.TempFilePattern);
+                                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                                {
+                                    string pattern = Path.GetFileName(cacheEntry.TempFilePattern) + ".*";
+                                    var files = Directory.GetFiles(dir, pattern);
+                                    foreach (var file in files)
+                                    {
+                                        try
+                                        {
+                                            File.Delete(file);
+                                        }
+                                        catch { }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+
+                        cache.ClearEntry(track.Id);
+                    }
+
+                    // Reset track completely
+                    track.HasStoppedDownload = false;
+                    track.ShowContinueButton = false;
+                    track.ShowClearButton = false;
+                    track.DownloadButtonText = "Download";
+                    track.CanDownload = true;
+                    track.IsDownloading = false;
+                    track.ShowProgress = false; // Ensure progress bar is hidden
+                    track.DownloadProgress = 0;
+                }
+            }
+
+            _isDownloadAllStopped = false;
+            _isDownloadingAll = false; // Ensure Download All is not active
+            ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
+            ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
+            DownloadAllButton.Content = "Download All";
+            DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+            DownloadAllButton.Visibility = System.Windows.Visibility.Visible;
+            StatusText.Text = "Cleared all stopped downloads. Ready to start fresh.";
         }
     }
 }

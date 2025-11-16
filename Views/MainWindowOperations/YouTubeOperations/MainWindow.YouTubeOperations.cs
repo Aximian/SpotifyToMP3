@@ -226,6 +226,7 @@ namespace MediaConverterToMP3.Views
 
                             StatusText.Text = $"Loaded video: {title}";
                             FilterTextBox.Visibility = Visibility.Visible;
+                            DownloadAllButton.Visibility = Visibility.Collapsed; // No download all for single videos
                         });
                     }
                     catch (Exception ex)
@@ -562,6 +563,7 @@ namespace MediaConverterToMP3.Views
                         {
                             StatusText.Text = $"Found {_tracks.Count} YouTube videos";
                             FilterTextBox.Visibility = Visibility.Visible;
+                            DownloadAllButton.Visibility = Visibility.Collapsed; // No download all for search results
                         }
                         else
                         {

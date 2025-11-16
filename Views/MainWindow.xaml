@@ -293,15 +293,57 @@
                     </Image.Style>
                 </Image>
                 
-                <Grid Grid.Column="2" Margin="15,0,0,0" MinWidth="130">
+                <Grid Grid.Column="2" Margin="15,0,0,0" MinWidth="250">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- Download All Button -->
                     <Button x:Name="DownloadAllButton"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="2"
                             Content="Download All" 
                             Height="42" 
                             MinWidth="120" 
                             Click="DownloadAllButton_Click"
-                            Visibility="Collapsed">
+                            Visibility="Collapsed"
+                            HorizontalAlignment="Left">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <!-- Continue All Button (shown when Download All is stopped) -->
+                    <Button x:Name="ContinueAllButton"
+                            Grid.Column="0"
+                            Content="▶️ Continue All" 
+                            Height="42" 
+                            MinWidth="120" 
+                            Click="ContinueAllButton_Click"
+                            Visibility="Collapsed"
+                            Margin="0,0,5,0"
+                            HorizontalAlignment="Left">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    
+                    <!-- Clear All Button (shown when Download All is stopped) -->
+                    <Button x:Name="ClearAllButton"
+                            Grid.Column="1"
+                            Content="🗑️ Clear All" 
+                            Height="42" 
+                            MinWidth="120" 
+                            Click="ClearAllButton_Click"
+                            Visibility="Collapsed"
+                            HorizontalAlignment="Left">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </Style>
                         </Button.Style>
@@ -429,6 +471,7 @@
                                         
                                         <StackPanel Grid.Column="2" 
                                                     VerticalAlignment="Center">
+                                            <!-- Main Download Button (hidden when Continue/Clear are shown) -->
                                             <Button Tag="{Binding}"
                                                     Click="DownloadButton_Click"
                                                     MinWidth="140"
@@ -439,11 +482,58 @@
                                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                         <Setter Property="Content" Value="{Binding DownloadButtonText, FallbackValue='Download'}"/>
                                                         <Setter Property="IsEnabled" Value="{Binding CanDownload, FallbackValue=True}"/>
+                                                        <Setter Property="Visibility" Value="Visible"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsDownloading, FallbackValue=False}" Value="True">
                                                                 <Setter Property="Content" Value="⏹️ Stop"/>
                                                                 <Setter Property="Background" Value="{StaticResource StopButtonColor}"/>
                                                                 <Setter Property="IsEnabled" Value="True"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding HasStoppedDownload, FallbackValue=False}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DownloadButtonText}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            
+                                            <!-- Continue Button (shown when download is stopped) -->
+                                            <Button Tag="{Binding}"
+                                                    Click="ContinueButton_Click"
+                                                    MinWidth="140"
+                                                    Padding="15,10"
+                                                    Margin="0,0,0,5"
+                                                    HorizontalAlignment="Stretch">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                        <Setter Property="Content" Value="▶️ Continue"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ShowContinueButton, FallbackValue=False}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            
+                                            <!-- Clear Button (shown when download is stopped) -->
+                                            <Button Tag="{Binding}"
+                                                    Click="ClearButton_Click"
+                                                    MinWidth="140"
+                                                    Padding="15,10"
+                                                    Margin="0,0,0,10"
+                                                    HorizontalAlignment="Stretch">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                                        <Setter Property="Content" Value="🗑️ Clear"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ShowClearButton, FallbackValue=False}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>

@@ -182,6 +182,80 @@ namespace MediaConverterToMP3.Views
             string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
             string baseFileName = $"{FileUtilities.SanitizeFileName(fileNameTitle)} - {FileUtilities.SanitizeFileName(fileNameArtist)}";
             
+            // Check if file already exists first (before checking cache)
+            string extension = _selectedSource == "YouTube" && _selectedFormat == "MP4" ? ".mp4" : ".mp3";
+            string outputPath = Path.Combine(_downloadPath, $"{baseFileName}{extension}");
+            bool fileExists = File.Exists(outputPath);
+            
+            // Check cache for partial downloads only if file doesn't exist
+            if (!fileExists)
+            {
+                var cache = Models.DownloadCache.Load();
+                var cacheEntry = cache.GetEntry(track.Id);
+                if (cacheEntry != null && cacheEntry.Source == _selectedSource && cacheEntry.Format == _selectedFormat)
+                {
+                    // Check if temp file still exists
+                    bool tempFileExists = false;
+                    if (!string.IsNullOrEmpty(cacheEntry.TempFilePattern))
+                    {
+                        string? dir = Path.GetDirectoryName(cacheEntry.TempFilePattern);
+                        if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                        {
+                            string pattern = Path.GetFileName(cacheEntry.TempFilePattern) + ".*";
+                            var files = Directory.GetFiles(dir, pattern);
+                            tempFileExists = files.Length > 0;
+                        }
+                    }
+
+                    if (tempFileExists)
+                    {
+                        // Show Continue/Clear buttons for stopped download
+                        track.HasStoppedDownload = true;
+                        track.ShowContinueButton = true;
+                        track.ShowClearButton = true;
+                        track.DownloadButtonText = "";
+                        track.CanDownload = false;
+                        track.DownloadProgress = cacheEntry.Progress;
+                        track.ShowProgress = true;
+                        
+                        // Continue with other checks (Spotify button, etc.) but skip download status check
+                        // Hide Spotify button for Spotify source (no need to add Spotify tracks to Spotify Local)
+                        if (_selectedSource == "Spotify")
+                        {
+                            track.SpotifyButtonText = "";
+                        }
+                        // Hide Spotify button when MP4 format is selected (MP4 cannot be added to Spotify)
+                        else if (_selectedSource == "YouTube" && _selectedFormat == "MP4")
+                        {
+                            track.SpotifyButtonText = "";
+                        }
+                        // Check Spotify button status for YouTube MP3 tracks
+                        else if (!string.IsNullOrEmpty(_spotifyLocalFilesPath))
+                        {
+                            string spotifyFilePath = Path.Combine(_spotifyLocalFilesPath, $"{baseFileName}.mp3");
+                            if (File.Exists(spotifyFilePath))
+                            {
+                                track.SpotifyButtonText = "Already in Spotify ✓";
+                            }
+                            else
+                            {
+                                track.SpotifyButtonText = "Add to Spotify Local";
+                            }
+                        }
+                        else
+                        {
+                            track.SpotifyButtonText = "Add to Spotify Local";
+                        }
+                        return; // Exit early, don't check download status
+                    }
+                    else
+                    {
+                        // Temp file doesn't exist, clear cache entry
+                        cache.ClearEntry(track.Id);
+                    }
+                }
+            }
+            
             // Hide Spotify button for Spotify source (no need to add Spotify tracks to Spotify Local)
             if (_selectedSource == "Spotify")
             {

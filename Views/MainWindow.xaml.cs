@@ -34,6 +34,7 @@ namespace MediaConverterToMP3.Views
         private string _selectedFormat = "MP3"; // "MP3" or "MP4" (only for YouTube)
         private bool _isSpotifyPlaylist = false;
         private bool _isDownloadingAll = false;
+        private bool _isDownloadAllStopped = false; // Track if Download All was stopped
         private CancellationTokenSource? _downloadAllCancellationTokenSource = null;
         private int _displayedProgressPercent = 0;
         private System.Windows.Threading.DispatcherTimer? _progressTimer;
@@ -147,6 +148,110 @@ namespace MediaConverterToMP3.Views
             try
             {
                 _httpClient?.Dispose();
+            }
+            catch { }
+
+            // Delete all temp files and clear cache entries on app close
+            try
+            {
+                var cache = Models.DownloadCache.Load();
+                
+                // Delete all temp files before clearing cache
+                foreach (var entry in cache.Entries.Values)
+                {
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(entry.TempFilePattern))
+                        {
+                            string? dir = Path.GetDirectoryName(entry.TempFilePattern);
+                            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                            {
+                                // Try to find files matching the pattern
+                                string pattern = Path.GetFileName(entry.TempFilePattern) + ".*";
+                                var files = Directory.GetFiles(dir, pattern);
+                                foreach (var file in files)
+                                {
+                                    try
+                                    {
+                                        File.Delete(file);
+                                    }
+                                    catch { /* Ignore individual file deletion errors */ }
+                                }
+                                
+                                // Also try to find files with just the GUID pattern (in case pattern format differs)
+                                string guidPattern = Path.GetFileName(entry.TempFilePattern);
+                                if (!string.IsNullOrEmpty(guidPattern) && guidPattern.StartsWith("temp_"))
+                                {
+                                    var guidFiles = Directory.GetFiles(dir, guidPattern + ".*");
+                                    foreach (var file in guidFiles)
+                                    {
+                                        try
+                                        {
+                                            if (!files.Contains(file)) // Don't delete twice
+                                            {
+                                                File.Delete(file);
+                                            }
+                                        }
+                                        catch { /* Ignore individual file deletion errors */ }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Also check TempFilePath if it exists
+                        if (!string.IsNullOrEmpty(entry.TempFilePath) && File.Exists(entry.TempFilePath))
+                        {
+                            try
+                            {
+                                File.Delete(entry.TempFilePath);
+                            }
+                            catch { /* Ignore individual file deletion errors */ }
+                        }
+                    }
+                    catch { /* Ignore errors for individual entries */ }
+                }
+                
+                // Also clean up any orphaned temp files in common temp directories
+                try
+                {
+                    // Check download directory for temp files
+                    if (!string.IsNullOrEmpty(_downloadPath) && Directory.Exists(_downloadPath))
+                    {
+                        var tempFiles = Directory.GetFiles(_downloadPath, "temp_*.*");
+                        foreach (var file in tempFiles)
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                            }
+                            catch { }
+                        }
+                    }
+                    
+                    // Check system temp directory for temp files from this app
+                    string systemTemp = Path.GetTempPath();
+                    if (Directory.Exists(systemTemp))
+                    {
+                        var systemTempFiles = Directory.GetFiles(systemTemp, "temp_*.*");
+                        foreach (var file in systemTempFiles)
+                        {
+                            try
+                            {
+                                // Only delete if file is recent (within last 24 hours) to avoid deleting other apps' files
+                                var fileInfo = new FileInfo(file);
+                                if (fileInfo.CreationTime > DateTime.Now.AddHours(-24))
+                                {
+                                    File.Delete(file);
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                catch { /* Ignore cleanup errors */ }
+                
+                // Clear all cache entries
+                cache.ClearAll();
             }
             catch { }
 

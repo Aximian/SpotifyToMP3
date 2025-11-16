@@ -12,6 +12,9 @@ namespace MediaConverterToMP3.Models
         private bool _showProgress = false;
         private string _progressText = "";
         private string _spotifyButtonText = "Add to Spotify Local";
+        private bool _hasStoppedDownload = false;
+        private bool _showContinueButton = false;
+        private bool _showClearButton = false;
 
         public string Id { get; set; } = "";
         public string Title { get; set; } = "";
@@ -170,6 +173,36 @@ namespace MediaConverterToMP3.Models
             {
                 _spotifyButtonText = value;
                 OnPropertyChanged(nameof(SpotifyButtonText));
+            }
+        }
+
+        public bool HasStoppedDownload
+        {
+            get => _hasStoppedDownload;
+            set
+            {
+                _hasStoppedDownload = value;
+                OnPropertyChanged(nameof(HasStoppedDownload));
+            }
+        }
+
+        public bool ShowContinueButton
+        {
+            get => _showContinueButton;
+            set
+            {
+                _showContinueButton = value;
+                OnPropertyChanged(nameof(ShowContinueButton));
+            }
+        }
+
+        public bool ShowClearButton
+        {
+            get => _showClearButton;
+            set
+            {
+                _showClearButton = value;
+                OnPropertyChanged(nameof(ShowClearButton));
             }
         }
 
