@@ -26,6 +26,9 @@ namespace MediaConverterToMP3.Views
                 _selectedSource = "YouTube";
             }
             UpdateSourceSelector();
+            
+            // Refresh all tracks when source changes to update button visibility
+            RefreshTrackDownloadStatus();
         }
 
         private void FormatSelector_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

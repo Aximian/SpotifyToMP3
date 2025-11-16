@@ -455,6 +455,9 @@
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                                                         <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SpotifyButtonText}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
                                                             <DataTrigger Binding="{Binding SpotifyButtonText}" Value="Already in Spotify ✓">
                                                                 <Setter Property="IsEnabled" Value="False"/>
                                                                 <Setter Property="Opacity" Value="0.6"/>

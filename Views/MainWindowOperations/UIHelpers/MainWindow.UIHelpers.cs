@@ -164,10 +164,7 @@ namespace MediaConverterToMP3.Views
 
         private void RefreshTrackDownloadStatus()
         {
-            // Only refresh if we're on YouTube (where format matters)
-            if (_selectedSource != "YouTube")
-                return;
-            
+            // Refresh tracks for both YouTube and Spotify sources
             foreach (var track in ResultsList.Items.OfType<TrackItem>())
             {
                 // Skip tracks that are currently downloading or just downloaded in this session
@@ -185,8 +182,18 @@ namespace MediaConverterToMP3.Views
             string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
             string baseFileName = $"{FileUtilities.SanitizeFileName(fileNameTitle)} - {FileUtilities.SanitizeFileName(fileNameArtist)}";
             
-            // Check Spotify button status if path is configured
-            if (!string.IsNullOrEmpty(_spotifyLocalFilesPath))
+            // Hide Spotify button for Spotify source (no need to add Spotify tracks to Spotify Local)
+            if (_selectedSource == "Spotify")
+            {
+                track.SpotifyButtonText = "";
+            }
+            // Hide Spotify button when MP4 format is selected (MP4 cannot be added to Spotify)
+            else if (_selectedSource == "YouTube" && _selectedFormat == "MP4")
+            {
+                track.SpotifyButtonText = "";
+            }
+            // Check Spotify button status for YouTube MP3 tracks
+            else if (!string.IsNullOrEmpty(_spotifyLocalFilesPath))
             {
                 string spotifyFilePath = Path.Combine(_spotifyLocalFilesPath, $"{baseFileName}.mp3");
                 if (File.Exists(spotifyFilePath))
