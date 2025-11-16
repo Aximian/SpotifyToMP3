@@ -665,6 +665,102 @@ namespace SpotifyToMP3.Views
                         var videoInfo = JsonConvert.DeserializeObject<dynamic>(jsonOutput);
                         string title = videoInfo?.title?.ToString() ?? "";
                         string uploader = videoInfo?.uploader?.ToString() ?? "";
+                        string channel = videoInfo?.channel?.ToString() ?? "";
+                        string channelId = videoInfo?.channel_id?.ToString() ?? "";
+
+                        // Extract year from upload_date or release_date
+                        string year = "";
+                        try
+                        {
+                            string? uploadDate = videoInfo?.upload_date?.ToString();
+                            string? releaseDate = videoInfo?.release_date?.ToString();
+                            
+                            string dateStr = releaseDate ?? uploadDate ?? "";
+                            if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 4)
+                            {
+                                // Format: YYYYMMDD or YYYY-MM-DD
+                                year = dateStr.Substring(0, 4);
+                            }
+                        }
+                        catch { }
+
+                        // Extract genre from tags or categories
+                        string genre = "";
+                        try
+                        {
+                            var tags = videoInfo?.tags;
+                            var categories = videoInfo?.categories;
+                            
+                            if (tags != null)
+                            {
+                                var tagsArray = tags as Newtonsoft.Json.Linq.JArray;
+                                if (tagsArray != null && tagsArray.Count > 0)
+                                {
+                                    // Use first tag as genre, or look for common music genres
+                                    string firstTag = tagsArray[0]?.ToString() ?? "";
+                                    if (!string.IsNullOrEmpty(firstTag))
+                                    {
+                                        // Check if it's a common genre
+                                        string[] commonGenres = { "Pop", "Rock", "Hip Hop", "Rap", "Country", "Jazz", "Classical", "Electronic", "R&B", "Blues", "Reggae", "Metal", "Punk", "Folk", "Indie", "Alternative" };
+                                        foreach (var commonGenre in commonGenres)
+                                        {
+                                            if (firstTag.Contains(commonGenre, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                genre = commonGenre;
+                                                break;
+                                            }
+                                        }
+                                        if (string.IsNullOrEmpty(genre))
+                                        {
+                                            genre = firstTag;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (string.IsNullOrEmpty(genre) && categories != null)
+                            {
+                                var categoriesArray = categories as Newtonsoft.Json.Linq.JArray;
+                                if (categoriesArray != null && categoriesArray.Count > 0)
+                                {
+                                    genre = categoriesArray[0]?.ToString() ?? "";
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // Try to extract album from description or use channel name
+                        string album = "";
+                        try
+                        {
+                            // Check if there's an album field
+                            string? albumField = videoInfo?.album?.ToString();
+                            if (!string.IsNullOrWhiteSpace(albumField))
+                            {
+                                album = albumField;
+                            }
+                            else
+                            {
+                                // Try to extract from description (look for patterns like "Album: ..." or "from ...")
+                                string? description = videoInfo?.description?.ToString() ?? "";
+                                if (!string.IsNullOrEmpty(description))
+                                {
+                                    // Look for common patterns
+                                    var albumMatch = System.Text.RegularExpressions.Regex.Match(description, @"(?:Album|ALBUM|from)\s*:?\s*([^\n\r]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                    if (albumMatch.Success)
+                                    {
+                                        album = albumMatch.Groups[1].Value.Trim();
+                                    }
+                                }
+                                
+                                // Fallback to channel name if no album found
+                                if (string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(channel))
+                                {
+                                    album = channel;
+                                }
+                            }
+                        }
+                        catch { }
 
                         // Use YouTube's fast thumbnail URL format for instant loading
                         string? thumbnail = null;
@@ -687,9 +783,12 @@ namespace SpotifyToMP3.Views
                         var trackItem = new TrackItem
                         {
                             Id = videoId,
-                            Title = title, // Keep empty for metadata
-                            Artist = uploader, // Keep empty for metadata
-                            Album = "YouTube",
+                            Title = title,
+                            Artist = uploader,
+                            Album = album, // Use extracted album or empty
+                            AlbumArtist = channel, // Use channel as album artist
+                            Year = year,
+                            Genre = genre,
                             Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
                             ImageUrl = thumbnail,
                             CanDownload = !alreadyExists,
@@ -742,9 +841,8 @@ namespace SpotifyToMP3.Views
                     throw new Exception("yt-dlp not found. Please place yt-dlp.exe in the application directory.");
                 }
 
-                // Note: --flat-playlist is much faster than full metadata extraction
                 string searchUrl = $"ytsearch30:{searchQuery}";
-                string infoArgs = $"--flat-playlist --dump-json --no-playlist --no-warnings --quiet --no-progress \"{searchUrl}\"";
+                string infoArgs = $"--flat-playlist --dump-json --no-playlist --no-warnings --quiet --no-progress --extractor-args \"youtube:player_client=android\" \"{searchUrl}\"";
 
                 var processInfo = new System.Diagnostics.ProcessStartInfo
                 {
@@ -797,8 +895,7 @@ namespace SpotifyToMP3.Views
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    // Wait for process - flat-playlist should be much faster
-                    // Use simple timeout since flat-playlist is quick
+                    // Wait for process - flat-playlist is fast
                     bool exited = process.WaitForExit(10000); // 10 seconds max
                     if (!exited)
                     {
@@ -834,7 +931,7 @@ namespace SpotifyToMP3.Views
                     var tracksToAdd = new List<TrackItem>();
                     string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     int resultCount = 0;
-                    const int maxResults = 30; // Increased to 30 results
+                    const int maxResults = 30; // 30 results with full metadata
 
                     foreach (string line in lines)
                     {
@@ -851,9 +948,103 @@ namespace SpotifyToMP3.Views
                                 continue;
 
                             string? videoId = videoInfo?.id?.ToString();
-                            // With --flat-playlist, some fields might be null, so handle gracefully
                             string title = videoInfo?.title?.ToString() ?? videoInfo?.name?.ToString() ?? "";
                             string uploader = videoInfo?.uploader?.ToString() ?? videoInfo?.channel?.ToString() ?? "";
+                            string channel = videoInfo?.channel?.ToString() ?? "";
+
+                            // Extract year from upload_date or release_date
+                            string year = "";
+                            try
+                            {
+                                string? uploadDate = videoInfo?.upload_date?.ToString();
+                                string? releaseDate = videoInfo?.release_date?.ToString();
+                                
+                                string dateStr = releaseDate ?? uploadDate ?? "";
+                                if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 4)
+                                {
+                                    // Format: YYYYMMDD or YYYY-MM-DD
+                                    year = dateStr.Substring(0, 4);
+                                }
+                            }
+                            catch { }
+
+                            // Extract genre from tags or categories
+                            string genre = "";
+                            try
+                            {
+                                var tags = videoInfo?.tags;
+                                var categories = videoInfo?.categories;
+                                
+                                if (tags != null)
+                                {
+                                    var tagsArray = tags as Newtonsoft.Json.Linq.JArray;
+                                    if (tagsArray != null && tagsArray.Count > 0)
+                                    {
+                                        // Use first tag as genre, or look for common music genres
+                                        string firstTag = tagsArray[0]?.ToString() ?? "";
+                                        if (!string.IsNullOrEmpty(firstTag))
+                                        {
+                                            // Check if it's a common genre
+                                            string[] commonGenres = { "Pop", "Rock", "Hip Hop", "Rap", "Country", "Jazz", "Classical", "Electronic", "R&B", "Blues", "Reggae", "Metal", "Punk", "Folk", "Indie", "Alternative" };
+                                            foreach (var commonGenre in commonGenres)
+                                            {
+                                                if (firstTag.Contains(commonGenre, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    genre = commonGenre;
+                                                    break;
+                                                }
+                                            }
+                                            if (string.IsNullOrEmpty(genre))
+                                            {
+                                                genre = firstTag;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if (string.IsNullOrEmpty(genre) && categories != null)
+                                {
+                                    var categoriesArray = categories as Newtonsoft.Json.Linq.JArray;
+                                    if (categoriesArray != null && categoriesArray.Count > 0)
+                                    {
+                                        genre = categoriesArray[0]?.ToString() ?? "";
+                                    }
+                                }
+                            }
+                            catch { }
+
+                            // Try to extract album from description or use channel name
+                            string album = "";
+                            try
+                            {
+                                // Check if there's an album field
+                                string? albumField = videoInfo?.album?.ToString();
+                                if (!string.IsNullOrWhiteSpace(albumField))
+                                {
+                                    album = albumField;
+                                }
+                                else
+                                {
+                                    // Try to extract from description (look for patterns like "Album: ..." or "from ...")
+                                    string? description = videoInfo?.description?.ToString() ?? "";
+                                    if (!string.IsNullOrEmpty(description))
+                                    {
+                                        // Look for common patterns
+                                        var albumMatch = System.Text.RegularExpressions.Regex.Match(description, @"(?:Album|ALBUM|from)\s*:?\s*([^\n\r]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                        if (albumMatch.Success)
+                                        {
+                                            album = albumMatch.Groups[1].Value.Trim();
+                                        }
+                                    }
+                                    
+                                    // Fallback to channel name if no album found
+                                    if (string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(channel))
+                                    {
+                                        album = channel;
+                                    }
+                                }
+                            }
+                            catch { }
 
                             // Use YouTube's fast thumbnail URL format for instant loading
                             // Format: https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg (medium quality, fast)
@@ -913,7 +1104,10 @@ namespace SpotifyToMP3.Views
                                 Id = videoId,
                                 Title = title,
                                 Artist = uploader,
-                                Album = "YouTube",
+                                Album = album,
+                                AlbumArtist = channel,
+                                Year = year,
+                                Genre = genre,
                                 Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
                                 ImageUrl = thumbnail,
                                 CanDownload = !alreadyExists,
@@ -1422,6 +1616,127 @@ namespace SpotifyToMP3.Views
                 if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
                 {
                     Directory.CreateDirectory(outputDir);
+                }
+
+                // For YouTube videos, fetch full metadata before downloading
+                if (_selectedSource == "YouTube" && !string.IsNullOrEmpty(track.Id) && track.Id.Length == 11)
+                {
+                    try
+                    {
+                        // Fetch full metadata for this video
+                        string infoArgs = $"--dump-json --no-playlist --no-warnings --quiet \"https://www.youtube.com/watch?v={track.Id}\"";
+                        var infoProcessInfo = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = ytDlpPath,
+                            Arguments = infoArgs,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        };
+
+                        using (var infoProcess = System.Diagnostics.Process.Start(infoProcessInfo))
+                        {
+                            if (infoProcess != null)
+                            {
+                                var infoOutput = new System.Text.StringBuilder();
+                                infoProcess.OutputDataReceived += (sender, e) =>
+                                {
+                                    if (!string.IsNullOrEmpty(e.Data))
+                                        infoOutput.AppendLine(e.Data);
+                                };
+                                infoProcess.BeginOutputReadLine();
+                                infoProcess.WaitForExit(5000); // 5 second timeout
+
+                                if (infoProcess.ExitCode == 0)
+                                {
+                                    string jsonOutput = infoOutput.ToString();
+                                    if (!string.IsNullOrWhiteSpace(jsonOutput))
+                                    {
+                                        try
+                                        {
+                                            var videoInfo = JsonConvert.DeserializeObject<dynamic>(jsonOutput);
+                                            string channel = videoInfo?.channel?.ToString() ?? track.AlbumArtist ?? "";
+
+                                            // Extract year
+                                            string year = "";
+                                            try
+                                            {
+                                                string? uploadDate = videoInfo?.upload_date?.ToString();
+                                                string? releaseDate = videoInfo?.release_date?.ToString();
+                                                string dateStr = releaseDate ?? uploadDate ?? "";
+                                                if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 4)
+                                                    year = dateStr.Substring(0, 4);
+                                            }
+                                            catch { }
+
+                                            // Extract genre
+                                            string genre = "";
+                                            try
+                                            {
+                                                var tags = videoInfo?.tags;
+                                                if (tags != null)
+                                                {
+                                                    var tagsArray = tags as Newtonsoft.Json.Linq.JArray;
+                                                    if (tagsArray != null && tagsArray.Count > 0)
+                                                    {
+                                                        string firstTag = tagsArray[0]?.ToString() ?? "";
+                                                        if (!string.IsNullOrEmpty(firstTag))
+                                                        {
+                                                            string[] commonGenres = { "Pop", "Rock", "Hip Hop", "Rap", "Country", "Jazz", "Classical", "Electronic", "R&B", "Blues", "Reggae", "Metal", "Punk", "Folk", "Indie", "Alternative" };
+                                                            foreach (var commonGenre in commonGenres)
+                                                            {
+                                                                if (firstTag.Contains(commonGenre, StringComparison.OrdinalIgnoreCase))
+                                                                {
+                                                                    genre = commonGenre;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            if (string.IsNullOrEmpty(genre))
+                                                                genre = firstTag;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            catch { }
+
+                                            // Extract album
+                                            string album = track.Album ?? "";
+                                            try
+                                            {
+                                                string? albumField = videoInfo?.album?.ToString();
+                                                if (!string.IsNullOrWhiteSpace(albumField))
+                                                {
+                                                    album = albumField;
+                                                }
+                                                else
+                                                {
+                                                    string? description = videoInfo?.description?.ToString() ?? "";
+                                                    if (!string.IsNullOrEmpty(description))
+                                                    {
+                                                        var albumMatch = System.Text.RegularExpressions.Regex.Match(description, @"(?:Album|ALBUM|from)\s*:?\s*([^\n\r]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                                        if (albumMatch.Success)
+                                                            album = albumMatch.Groups[1].Value.Trim();
+                                                    }
+                                                    if (string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(channel))
+                                                        album = channel;
+                                                }
+                                            }
+                                            catch { }
+
+                                            // Update track metadata
+                                            if (!string.IsNullOrEmpty(year)) track.Year = year;
+                                            if (!string.IsNullOrEmpty(genre)) track.Genre = genre;
+                                            if (!string.IsNullOrEmpty(album)) track.Album = album;
+                                            if (!string.IsNullOrEmpty(channel)) track.AlbumArtist = channel;
+                                        }
+                                        catch { }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
                 }
 
                 // Step 1: Download best audio available (without conversion)
