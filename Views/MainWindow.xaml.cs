@@ -27,7 +27,11 @@ namespace SpotifyToMP3.Views
         private string _clientSecret = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_SECRET") ?? "YOUR_CLIENT_SECRET_HERE";
         private CancellationTokenSource? _downloadCancellationTokenSource;
         private List<System.Diagnostics.Process>? _activeProcesses;
+        private readonly object _processLock = new object();
         private string _selectedSource = "Spotify"; // "Spotify" or "YouTube"
+        private bool _isSpotifyPlaylist = false;
+        private bool _isDownloadingAll = false;
+        private CancellationTokenSource? _downloadAllCancellationTokenSource = null;
         private int _displayedProgressPercent = 0;
         private System.Windows.Threading.DispatcherTimer? _progressTimer;
         private TrackItem? _currentDownloadingTrack;
@@ -37,6 +41,7 @@ namespace SpotifyToMP3.Views
             InitializeComponent();
             _tracks = new ObservableCollection<TrackItem>();
             _allTracks = new ObservableCollection<TrackItem>();
+            _activeProcesses = new List<System.Diagnostics.Process>();
             ResultsList.ItemsSource = _tracks;
 
             // Load settings
@@ -144,7 +149,7 @@ namespace SpotifyToMP3.Views
             _downloadCancellationTokenSource?.Cancel();
 
             // Kill all active processes immediately
-            lock (_activeProcesses ?? new List<System.Diagnostics.Process>())
+            lock (_processLock)
             {
                 if (_activeProcesses != null)
                 {
@@ -373,6 +378,7 @@ namespace SpotifyToMP3.Views
                 _tracks.Clear();
                 _allTracks.Clear();
                 FilterTextBox.Visibility = Visibility.Collapsed;
+                DownloadAllButton.Visibility = Visibility.Collapsed;
 
                 if (_selectedSource == "Spotify")
                 {
@@ -389,10 +395,12 @@ namespace SpotifyToMP3.Views
                     if (!string.IsNullOrEmpty(playlistId))
                     {
                         // Load playlist tracks
+                        _isSpotifyPlaylist = true;
                         await LoadPlaylistTracks(playlistId);
                     }
                     else
                     {
+                        _isSpotifyPlaylist = false;
                         // Check if input is a Spotify track URL
                         string? trackId = ExtractTrackId(searchQuery);
                         if (!string.IsNullOrEmpty(trackId))
@@ -1017,7 +1025,7 @@ namespace SpotifyToMP3.Views
                 {
                     // Prefer medium size (around 300x300), or largest available
                     var mediumImage = trackResponse.Album.Images.FirstOrDefault(img => img.Height >= 200 && img.Height <= 400);
-                    imageUrl = mediumImage?.Url ?? trackResponse.Album.Images[0].Url;
+                    imageUrl = mediumImage?.Url ?? (trackResponse.Album.Images.Length > 0 ? trackResponse.Album.Images[0].Url : null);
                 }
 
                 string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(trackResponse.Name)} - {SanitizeFileName(string.Join(", ", trackResponse.Artists?.Select(a => a.Name) ?? Array.Empty<string>()))}.mp3");
@@ -1088,7 +1096,7 @@ namespace SpotifyToMP3.Views
                             {
                                 // Prefer medium size (around 300x300), or largest available
                                 var mediumImage = item.Track.Album.Images.FirstOrDefault(img => img.Height >= 200 && img.Height <= 400);
-                                imageUrl = mediumImage?.Url ?? item.Track.Album.Images[0].Url;
+                                imageUrl = mediumImage?.Url ?? (item.Track.Album.Images.Length > 0 ? item.Track.Album.Images[0].Url : null);
                             }
 
                             string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(item.Track.Name)} - {SanitizeFileName(string.Join(", ", item.Track.Artists?.Select(a => a.Name) ?? Array.Empty<string>()))}.mp3");
@@ -1128,6 +1136,7 @@ namespace SpotifyToMP3.Views
             if (_tracks.Count > 0)
             {
                 FilterTextBox.Visibility = Visibility.Visible;
+                DownloadAllButton.Visibility = Visibility.Visible;
             }
         }
 
@@ -1163,7 +1172,7 @@ namespace SpotifyToMP3.Views
                     {
                         // Prefer medium size (around 300x300), or largest available
                         var mediumImage = track.Album.Images.FirstOrDefault(img => img.Height >= 200 && img.Height <= 400);
-                        imageUrl = mediumImage?.Url ?? track.Album.Images[0].Url;
+                        imageUrl = mediumImage?.Url ?? (track.Album.Images.Length > 0 ? track.Album.Images[0].Url : null);
                     }
 
                     string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(track.Name)} - {SanitizeFileName(string.Join(", ", track.Artists.Select(a => a.Name)))}.mp3");
@@ -1191,6 +1200,7 @@ namespace SpotifyToMP3.Views
                 if (_tracks.Count > 0)
                 {
                     FilterTextBox.Visibility = Visibility.Visible;
+                    DownloadAllButton.Visibility = Visibility.Collapsed;
                 }
             }
             else
@@ -1205,6 +1215,45 @@ namespace SpotifyToMP3.Views
             var track = button?.Tag as TrackItem;
 
             if (track == null) return;
+
+            // If already downloading, stop it
+            if (track.IsDownloading && _downloadCancellationTokenSource != null)
+            {
+                _downloadCancellationTokenSource.Cancel();
+                
+                // Kill all active processes for this track
+                lock (_processLock)
+                {
+                    if (_activeProcesses != null)
+                    {
+                        foreach (var process in _activeProcesses.ToList())
+                        {
+                            try
+                            {
+                                if (!process.HasExited)
+                                {
+                                    process.Kill();
+                                }
+                            }
+                            catch { }
+                        }
+                        _activeProcesses.Clear();
+                    }
+                }
+                
+                track.IsDownloading = false;
+                track.CanDownload = true;
+                track.DownloadButtonText = "Download";
+                track.ShowProgress = false;
+                StatusText.Text = "Download cancelled successfully.";
+                
+                _downloadCancellationTokenSource?.Dispose();
+                _downloadCancellationTokenSource = null;
+                _progressTimer?.Stop();
+                _progressTimer = null;
+                _currentDownloadingTrack = null;
+                return;
+            }
 
             // Use saved download path
             string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(track.Title)} - {SanitizeFileName(track.Artist)}.mp3");
@@ -1226,8 +1275,12 @@ namespace SpotifyToMP3.Views
 
             try
             {
+                // Initialize cancellation token source for this download first
+                _downloadCancellationTokenSource = new CancellationTokenSource();
+                
                 track.CanDownload = false;
-                track.DownloadButtonText = "Downloading...";
+                track.IsDownloading = true;
+                track.DownloadButtonText = "⏹️ Stop";
                 _currentDownloadingTrack = track;
                 _displayedProgressPercent = 0;
 
@@ -1271,15 +1324,21 @@ namespace SpotifyToMP3.Views
 
                 StatusText.Text = $"Downloading: {track.Title} - {track.Artist} (0%)";
 
-                await DownloadAndConvertTrack(track, outputPath);
+                await DownloadAndConvertTrack(track, outputPath, _downloadCancellationTokenSource.Token);
 
                 // Stop progress timer
                 _progressTimer?.Stop();
                 _progressTimer = null;
                 _currentDownloadingTrack = null;
                 _displayedProgressPercent = 0;
+                
+                // Reset download state
+                track.IsDownloading = false;
+                _downloadCancellationTokenSource?.Dispose();
+                _downloadCancellationTokenSource = null;
 
                 track.DownloadButtonText = "Downloaded ✓";
+                track.CanDownload = false;
                 StatusText.Text = $"Successfully downloaded: {track.Title}";
             }
             catch (Exception ex)
@@ -1289,12 +1348,32 @@ namespace SpotifyToMP3.Views
                 _progressTimer = null;
                 _currentDownloadingTrack = null;
                 _displayedProgressPercent = 0;
+                
+                // Reset download state
+                track.IsDownloading = false;
+                _downloadCancellationTokenSource?.Dispose();
+                _downloadCancellationTokenSource = null;
 
-                track.CanDownload = true;
-                track.DownloadButtonText = "Download";
-                StatusText.Text = $"Download failed: {ex.Message}";
-                System.Windows.MessageBox.Show($"Failed to download {track.Title}:\n{ex.Message}",
-                    "Download Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Check if it was a cancellation (not an error)
+                if (ex is OperationCanceledException || ex is TaskCanceledException)
+                {
+                    track.CanDownload = true;
+                    track.DownloadButtonText = "Download";
+                    StatusText.Text = "Download cancelled successfully.";
+                }
+                else
+                {
+                    track.CanDownload = true;
+                    track.DownloadButtonText = "Download";
+                    StatusText.Text = $"Download failed: {ex.Message}";
+                    
+                    // Show custom error dialog only for actual errors, not cancellations
+                    var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
+                    {
+                        Owner = this
+                    };
+                    errorDialog.ShowDialog();
+                }
             }
         }
 
@@ -1937,6 +2016,189 @@ namespace SpotifyToMP3.Views
 
                     StatusText.Text = "Stopping downloads...";
                 }
+            }
+        }
+
+        private async void DownloadAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            // If already downloading, stop it
+            if (_isDownloadingAll && _downloadAllCancellationTokenSource != null)
+            {
+                _downloadAllCancellationTokenSource.Cancel();
+                
+                // Kill all active processes
+                lock (_processLock)
+                {
+                    if (_activeProcesses != null)
+                    {
+                        foreach (var process in _activeProcesses.ToList())
+                        {
+                            try
+                            {
+                                if (!process.HasExited)
+                                {
+                                    process.Kill();
+                                }
+                            }
+                            catch { }
+                        }
+                        _activeProcesses.Clear();
+                    }
+                }
+                
+                // Also kill any yt-dlp or ffmpeg processes
+                try
+                {
+                    foreach (var proc in System.Diagnostics.Process.GetProcessesByName("yt-dlp"))
+                    {
+                        try { proc.Kill(); } catch { }
+                    }
+                    foreach (var proc in System.Diagnostics.Process.GetProcessesByName("ffmpeg"))
+                    {
+                        try { proc.Kill(); } catch { }
+                    }
+                }
+                catch { }
+                
+                _isDownloadingAll = false;
+                DownloadAllButton.Content = "Download All";
+                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                StatusText.Text = "Download cancelled successfully.";
+                
+                // Reset all queued/downloading tracks (but keep already downloaded ones)
+                foreach (var track in _tracks)
+                {
+                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                    {
+                        // Keep as downloaded
+                        continue;
+                    }
+                    else
+                    {
+                        // Reset to Download
+                        track.IsDownloading = false;
+                        track.CanDownload = true;
+                        track.DownloadButtonText = "Download";
+                    }
+                }
+                
+                _downloadAllCancellationTokenSource?.Dispose();
+                _downloadAllCancellationTokenSource = null;
+                return;
+            }
+            
+            // Start downloading all tracks
+            if (!_isSpotifyPlaylist || _tracks.Count == 0)
+            {
+                return;
+            }
+            
+            try
+            {
+                _downloadAllCancellationTokenSource = new CancellationTokenSource();
+                _isDownloadingAll = true;
+                DownloadAllButton.Content = "⏹️ Stop";
+                DownloadAllButton.Style = (System.Windows.Style)FindResource("StopButtonStyle");
+                
+                var tracksToDownload = _tracks.Where(t => t.CanDownload).ToList();
+                int totalTracks = tracksToDownload.Count;
+                int downloadedCount = 0;
+                
+                // Mark all tracks as queued/downloading
+                foreach (var track in tracksToDownload)
+                {
+                    track.CanDownload = false;
+                    track.DownloadButtonText = "Queued...";
+                    track.IsDownloading = false; // Not actively downloading yet, just queued
+                }
+                
+                StatusText.Text = $"Downloading {downloadedCount}/{totalTracks} tracks...";
+                
+                foreach (var track in tracksToDownload)
+                {
+                    if (_downloadAllCancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    
+                    try
+                    {
+                        // Mark track as actively downloading (but don't show stop button for Download All)
+                        track.IsDownloading = false; // Keep false so no stop button appears
+                        track.DownloadButtonText = "Downloading...";
+                        
+                        string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
+                        string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
+                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp3");
+                        
+                        await DownloadAndConvertTrack(track, outputPath, _downloadAllCancellationTokenSource.Token);
+                        
+                        downloadedCount++;
+                        track.IsDownloading = false;
+                        track.CanDownload = false;
+                        track.DownloadButtonText = "Downloaded ✓";
+                        StatusText.Text = $"Downloaded {downloadedCount}/{totalTracks} tracks...";
+                    }
+                    catch (Exception ex)
+                    {
+                        // Check if it was a cancellation
+                        if (ex is OperationCanceledException || ex is TaskCanceledException)
+                        {
+                            // Reset track state on cancellation
+                            track.IsDownloading = false;
+                            track.CanDownload = true;
+                            track.DownloadButtonText = "Download";
+                        }
+                        else
+                        {
+                            // Reset track state on error
+                            track.IsDownloading = false;
+                            track.CanDownload = true;
+                            track.DownloadButtonText = "Download";
+                            System.Diagnostics.Debug.WriteLine($"Failed to download {track.Title}: {ex.Message}");
+                        }
+                        // Continue with next track
+                    }
+                }
+                
+                StatusText.Text = $"Successfully downloaded {downloadedCount}/{totalTracks} tracks";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Download failed: {ex.Message}";
+                
+                // Show custom error dialog
+                var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download all tracks:\n{ex.Message}")
+                {
+                    Owner = this
+                };
+                errorDialog.ShowDialog();
+            }
+            finally
+            {
+                _isDownloadingAll = false;
+                DownloadAllButton.Content = "Download All";
+                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                
+                // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
+                foreach (var track in _tracks)
+                {
+                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                    {
+                        // Keep as downloaded
+                        continue;
+                    }
+                    else if (track.DownloadButtonText == "Queued..." || track.DownloadButtonText == "Downloading..." || track.IsDownloading)
+                    {
+                        // Reset to Download
+                        track.IsDownloading = false;
+                        track.CanDownload = true;
+                        track.DownloadButtonText = "Download";
+                    }
+                }
+                
+                _downloadAllCancellationTokenSource?.Dispose();
+                _downloadAllCancellationTokenSource = null;
             }
         }
 

@@ -33,6 +33,26 @@ namespace SpotifyToMP3.Models
             }
         }
         public string? ImageUrl { get; set; }
+        private bool _isDownloading = false;
+        public bool IsDownloading 
+        { 
+            get => _isDownloading;
+            set
+            {
+                if (_isDownloading != value)
+                {
+                    _isDownloading = value;
+                    try
+                    {
+                        OnPropertyChanged(nameof(IsDownloading));
+                    }
+                    catch
+                    {
+                        // Ignore errors during property change notifications
+                    }
+                }
+            }
+        }
         
         public string FormattedDuration
         {
