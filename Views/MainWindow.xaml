@@ -211,11 +211,12 @@
             
             <!-- Filter/Search for loaded tracks -->
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
                 
                 <Border Grid.Column="0" 
                         CornerRadius="6" 
@@ -314,6 +315,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         
                                         <!-- Album Art Image -->
@@ -407,26 +409,53 @@
                                             </Grid>
                                         </StackPanel>
                                         
-                                        <Button Grid.Column="2" 
-                                                Tag="{Binding}"
-                                                Click="DownloadButton_Click"
-                                                MinWidth="140"
-                                                Padding="20,10"
-                                                VerticalAlignment="Center">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                    <Setter Property="Content" Value="{Binding DownloadButtonText, FallbackValue='Download'}"/>
-                                                    <Setter Property="IsEnabled" Value="{Binding CanDownload, FallbackValue=True}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsDownloading, FallbackValue=False}" Value="True">
-                                                            <Setter Property="Content" Value="⏹️ Stop"/>
-                                                            <Setter Property="Background" Value="{StaticResource StopButtonColor}"/>
-                                                            <Setter Property="IsEnabled" Value="True"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+                                        <StackPanel Grid.Column="2" 
+                                                    VerticalAlignment="Center">
+                                            <Button Tag="{Binding}"
+                                                    Click="DownloadButton_Click"
+                                                    MinWidth="140"
+                                                    Padding="20,10"
+                                                    Margin="0,0,0,10"
+                                                    HorizontalAlignment="Stretch">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                        <Setter Property="Content" Value="{Binding DownloadButtonText, FallbackValue='Download'}"/>
+                                                        <Setter Property="IsEnabled" Value="{Binding CanDownload, FallbackValue=True}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsDownloading, FallbackValue=False}" Value="True">
+                                                                <Setter Property="Content" Value="⏹️ Stop"/>
+                                                                <Setter Property="Background" Value="{StaticResource StopButtonColor}"/>
+                                                                <Setter Property="IsEnabled" Value="True"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Tag="{Binding}"
+                                                    Click="AddToSpotifyButton_Click"
+                                                    MinWidth="140"
+                                                    Padding="15,10"
+                                                    HorizontalAlignment="Stretch">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SpotifyButtonText}" Value="Already in Spotify ✓">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                                <Setter Property="Opacity" Value="0.6"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding SpotifyButtonText}" Value="Successfully Added ✓">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                                <Setter Property="Opacity" Value="0.6"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <TextBlock Text="{Binding SpotifyButtonText, FallbackValue='Add to Spotify Local'}" 
+                                                           FontSize="13"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center"/>
+                                            </Button>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

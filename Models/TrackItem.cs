@@ -11,6 +11,7 @@ namespace MediaConverterToMP3.Models
         private double _downloadProgress = 0;
         private bool _showProgress = false;
         private string _progressText = "";
+        private string _spotifyButtonText = "Add to Spotify Local";
 
         public string Id { get; set; } = "";
         public string Title { get; set; } = "";
@@ -160,6 +161,16 @@ namespace MediaConverterToMP3.Models
         public double ProgressWidth
         {
             get => Math.Max(0, Math.Min(200, _downloadProgress * 2));
+        }
+
+        public string SpotifyButtonText
+        {
+            get => _spotifyButtonText;
+            set
+            {
+                _spotifyButtonText = value;
+                OnPropertyChanged(nameof(SpotifyButtonText));
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

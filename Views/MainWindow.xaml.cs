@@ -23,6 +23,7 @@ namespace MediaConverterToMP3.Views
         private ObservableCollection<TrackItem> _tracks;
         private ObservableCollection<TrackItem> _allTracks; // Store all tracks for filtering
         private string _downloadPath;
+        private string? _spotifyLocalFilesPath;
         private string _clientId = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_ID") ?? "YOUR_CLIENT_ID_HERE";
         private string _clientSecret = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_SECRET") ?? "YOUR_CLIENT_SECRET_HERE";
         private CancellationTokenSource? _downloadCancellationTokenSource;
@@ -48,6 +49,7 @@ namespace MediaConverterToMP3.Views
             // Load settings
             var settings = Models.AppSettings.Load();
             _downloadPath = settings.DownloadPath;
+            _spotifyLocalFilesPath = settings.SpotifyLocalFilesPath;
             _httpClient = new HttpClient();
 
             // Load credentials from settings (with fallback to environment variables)
@@ -399,6 +401,33 @@ namespace MediaConverterToMP3.Views
             string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
             string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
             string baseFileName = $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}";
+            
+            // Check Spotify button status if path is configured
+            if (!string.IsNullOrEmpty(_spotifyLocalFilesPath))
+            {
+                string spotifyFilePath = Path.Combine(_spotifyLocalFilesPath, $"{baseFileName}.mp3");
+                if (File.Exists(spotifyFilePath))
+                {
+                    track.SpotifyButtonText = "Already in Spotify ✓";
+                }
+                else
+                {
+                    // Check if MP3 exists in download folder (can be added to Spotify)
+                    string mp3Path = Path.Combine(_downloadPath, $"{baseFileName}.mp3");
+                    if (File.Exists(mp3Path))
+                    {
+                        track.SpotifyButtonText = "Add to Spotify Local";
+                    }
+                    else
+                    {
+                        track.SpotifyButtonText = "Add to Spotify Local";
+                    }
+                }
+            }
+            else
+            {
+                track.SpotifyButtonText = "Add to Spotify Local";
+            }
             
             if (_selectedSource == "YouTube")
             {
@@ -2103,7 +2132,7 @@ namespace MediaConverterToMP3.Views
                     var mp4MetadataArgs = new System.Text.StringBuilder();
 
                     // Helper function to escape and add metadata for MP4
-                    void AddMP4Metadata(string key, string value)
+                    void AddMP4Metadata(string key, string? value)
                     {
                         if (!string.IsNullOrWhiteSpace(value) &&
                             !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
@@ -2244,7 +2273,7 @@ namespace MediaConverterToMP3.Views
                 var metadataArgs = new System.Text.StringBuilder();
 
                 // Helper function to escape and add metadata
-                void AddMetadata(string key, string value)
+                void AddMetadata(string key, string? value)
                 {
                     if (!string.IsNullOrWhiteSpace(value) &&
                         !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
@@ -2591,7 +2620,7 @@ namespace MediaConverterToMP3.Views
         {
             // Load current settings to pass to settings window
             var currentSettings = Models.AppSettings.Load();
-            var settingsWindow = new Views.SettingsWindow(_downloadPath, currentSettings.SpotifyClientId, currentSettings.SpotifyClientSecret)
+            var settingsWindow = new Views.SettingsWindow(_downloadPath, currentSettings.SpotifyClientId, currentSettings.SpotifyClientSecret, currentSettings.SpotifyLocalFilesPath)
             {
                 Owner = this
             };
@@ -2610,12 +2639,16 @@ namespace MediaConverterToMP3.Views
                     credentialsChanged = true;
                 }
 
+                // Update Spotify local files path
+                _spotifyLocalFilesPath = settingsWindow.SpotifyLocalFilesPath;
+
                 // Save settings
                 var settings = new Models.AppSettings
                 {
                     DownloadPath = _downloadPath,
                     SpotifyClientId = _clientId,
-                    SpotifyClientSecret = _clientSecret
+                    SpotifyClientSecret = _clientSecret,
+                    SpotifyLocalFilesPath = _spotifyLocalFilesPath
                 };
                 settings.Save();
 
@@ -2976,6 +3009,84 @@ namespace MediaConverterToMP3.Views
 
                 _downloadAllCancellationTokenSource?.Dispose();
                 _downloadAllCancellationTokenSource = null;
+            }
+        }
+
+        private void AddToSpotifyButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            var track = button?.Tag as TrackItem;
+
+            if (track == null) return;
+
+            // Check if Spotify local files path is configured
+            if (string.IsNullOrEmpty(_spotifyLocalFilesPath))
+            {
+                StatusText.Text = "Please configure Spotify Local Files Path in Settings first.";
+                var result = System.Windows.MessageBox.Show(
+                    "Spotify Local Files Path is not configured.\n\nWould you like to open Settings?",
+                    "Spotify Path Not Configured",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                
+                if (result == MessageBoxResult.Yes)
+                {
+                    SettingsButton_Click(sender, e);
+                }
+                return;
+            }
+
+            try
+            {
+                // Check if the file exists in download folder
+                string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
+                string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
+                string fileName = $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp3";
+                string sourcePath = Path.Combine(_downloadPath, fileName);
+
+                // Check if MP3 exists, if not check MP4
+                if (!File.Exists(sourcePath))
+                {
+                    string mp4Path = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp4");
+                    if (File.Exists(mp4Path))
+                    {
+                        StatusText.Text = "MP4 files cannot be added to Spotify. Please download as MP3 first.";
+                        return;
+                    }
+                    else
+                    {
+                        StatusText.Text = $"File not found: {track.Title}. Please download it first.";
+                        return;
+                    }
+                }
+
+                // Check if already in Spotify folder
+                string spotifyFilePath = Path.Combine(_spotifyLocalFilesPath, fileName);
+                if (File.Exists(spotifyFilePath))
+                {
+                    track.SpotifyButtonText = "Already in Spotify ✓";
+                    StatusText.Text = $"Already in Spotify local: {track.Title}";
+                    return;
+                }
+
+                // Ensure Spotify folder exists
+                if (!Directory.Exists(_spotifyLocalFilesPath))
+                {
+                    Directory.CreateDirectory(_spotifyLocalFilesPath);
+                }
+
+                // Copy file to Spotify folder
+                File.Copy(sourcePath, spotifyFilePath, true);
+
+                // Update button text
+                track.SpotifyButtonText = "Successfully Added ✓";
+                StatusText.Text = $"Successfully added to Spotify local: {track.Title}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Failed to add to Spotify: {ex.Message}";
+                var errorDialog = new Views.ErrorDialog("Error", $"Failed to add {track.Title} to Spotify:\n{ex.Message}") { Owner = this };
+                errorDialog.ShowDialog();
             }
         }
 

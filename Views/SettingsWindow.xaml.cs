@@ -10,8 +10,9 @@ namespace MediaConverterToMP3.Views
         public string DownloadPath { get; private set; }
         public string? SpotifyClientId { get; private set; }
         public string? SpotifyClientSecret { get; private set; }
+        public string? SpotifyLocalFilesPath { get; private set; }
 
-        public SettingsWindow(string currentPath, string? clientId = null, string? clientSecret = null)
+        public SettingsWindow(string currentPath, string? clientId = null, string? clientSecret = null, string? spotifyLocalFilesPath = null)
         {
             InitializeComponent();
             DownloadPath = currentPath;
@@ -25,6 +26,13 @@ namespace MediaConverterToMP3.Views
             if (!string.IsNullOrEmpty(clientSecret))
             {
                 ClientSecretPasswordBox.Password = clientSecret;
+            }
+            
+            // Load Spotify local files path if provided
+            SpotifyLocalFilesPath = spotifyLocalFilesPath;
+            if (!string.IsNullOrEmpty(SpotifyLocalFilesPath))
+            {
+                SpotifyPathTextBlock.Text = SpotifyLocalFilesPath;
             }
 
             // Try to set window icon if PNG file exists
@@ -94,9 +102,28 @@ namespace MediaConverterToMP3.Views
             // Save credentials (can be empty - user will be warned)
             SpotifyClientId = string.IsNullOrWhiteSpace(ClientIdTextBox.Text) ? null : ClientIdTextBox.Text.Trim();
             SpotifyClientSecret = string.IsNullOrWhiteSpace(ClientSecretPasswordBox.Password) ? null : ClientSecretPasswordBox.Password.Trim();
+            
+            // Save Spotify local files path (can be empty)
+            SpotifyLocalFilesPath = string.IsNullOrWhiteSpace(SpotifyPathTextBlock.Text) ? null : SpotifyPathTextBlock.Text.Trim();
 
             DialogResult = true;
             Close();
+        }
+
+        private void BrowseSpotifyButton_Click(object sender, RoutedEventArgs e)
+        {
+            var folderDialog = new FolderBrowserDialog
+            {
+                Description = "Select Spotify local files folder",
+                SelectedPath = SpotifyLocalFilesPath ?? "",
+                ShowNewFolderButton = true
+            };
+
+            if (folderDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                SpotifyLocalFilesPath = folderDialog.SelectedPath;
+                SpotifyPathTextBlock.Text = SpotifyLocalFilesPath;
+            }
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)

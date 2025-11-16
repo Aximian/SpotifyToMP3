@@ -12,6 +12,7 @@ namespace MediaConverterToMP3.Models
 
         public string? SpotifyClientId { get; set; }
         public string? SpotifyClientSecret { get; set; }
+        public string? SpotifyLocalFilesPath { get; set; }
 
         private static string GetSettingsPath()
         {
