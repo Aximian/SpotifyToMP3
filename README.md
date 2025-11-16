@@ -63,7 +63,6 @@ A C# WPF application that searches and downloads music from both Spotify and You
 
 - After downloading MP3 files, you can add them directly to Spotify Local Files
 - Click **Add to Spotify Local** next to any downloaded MP3 track
-- Or use **🎵 Add All to Spotify** to add all downloaded MP3s at once
 - Configure your Spotify Local Files path in Settings (usually in Spotify's settings)
 - **Note:** MP4 files cannot be added to Spotify (only MP3 supported)
 - **Note:** The "Add to Spotify Local" button is automatically hidden for:
