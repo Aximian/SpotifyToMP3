@@ -72,7 +72,7 @@ namespace SpotifyToMP3.Views
             // Try to set window icon if PNG file exists
             try
             {
-                string pngPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "spotify.png");
+                string pngPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.png");
                 if (File.Exists(pngPath))
                 {
                     var bitmap = new System.Windows.Media.Imaging.BitmapImage();

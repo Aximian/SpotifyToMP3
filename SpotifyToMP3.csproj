@@ -19,9 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Assets\spotify.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="Assets\settings.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
