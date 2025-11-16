@@ -40,52 +40,98 @@
             </Grid.ColumnDefinitions>
 
             <!-- Source Selector -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,30,0" VerticalAlignment="Top">
-                <Border x:Name="SpotifySelector"
-                        Background="#1DB954"
-                        CornerRadius="25"
-                        Padding="20,12"
-                        Margin="0,0,15,0"
-                        Cursor="Hand"
-                        MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
-                        Tag="Spotify">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="3" BlurRadius="8" Opacity="0.5"/>
-                    </Border.Effect>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="🎵" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Spotify" 
-                                   FontSize="16" 
-                                   FontWeight="Bold" 
+            <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,30,0" VerticalAlignment="Top">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Border x:Name="SpotifySelector"
+                            Background="#1DB954"
+                            CornerRadius="25"
+                            Padding="20,12"
+                            Margin="0,0,15,0"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
+                            Tag="Spotify">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="3" BlurRadius="8" Opacity="0.5"/>
+                        </Border.Effect>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🎵" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Spotify" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="YouTubeSelector"
+                            Background="#282828"
+                            CornerRadius="25"
+                            Padding="20,12"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
+                            Tag="YouTube">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#333333"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▶️" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="YouTube" 
+                                       FontSize="16" 
+                                       FontWeight="Bold" 
+                                       Foreground="#B3B3B3"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <!-- Format Selector (only for YouTube) -->
+                <StackPanel x:Name="FormatSelectorPanel" 
+                           Orientation="Horizontal" 
+                           Visibility="Collapsed">
+                    <Border x:Name="MP3FormatSelector"
+                            Background="#1DB954"
+                            CornerRadius="20"
+                            Padding="15,8"
+                            Margin="0,0,10,0"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="FormatSelector_MouseLeftButtonDown"
+                            Tag="MP3">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="2" BlurRadius="6" Opacity="0.4"/>
+                        </Border.Effect>
+                        <TextBlock Text="MP3" 
+                                   FontSize="13" 
+                                   FontWeight="SemiBold" 
                                    Foreground="White"
                                    VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-                <Border x:Name="YouTubeSelector"
-                        Background="#282828"
-                        CornerRadius="25"
-                        Padding="20,12"
-                        Cursor="Hand"
-                        MouseLeftButtonDown="SourceSelector_MouseLeftButtonDown"
-                        Tag="YouTube">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#333333"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="▶️" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="YouTube" 
-                                   FontSize="16" 
-                                   FontWeight="Bold" 
+                    </Border>
+                    <Border x:Name="MP4FormatSelector"
+                            Background="#282828"
+                            CornerRadius="20"
+                            Padding="15,8"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="FormatSelector_MouseLeftButtonDown"
+                            Tag="MP4">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#333333"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="MP4" 
+                                   FontSize="13" 
+                                   FontWeight="SemiBold" 
                                    Foreground="#B3B3B3"
                                    VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
+                    </Border>
+                </StackPanel>
             </StackPanel>
             <StackPanel Grid.Column="1">
                 <TextBlock x:Name="TitleText" Text="🎵 Spotify/YT Converter to MP3" 
@@ -252,9 +298,13 @@
                 BorderThickness="1"
                 CornerRadius="15">
             <Grid>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                <ScrollViewer x:Name="ResultsScrollViewer"
+                            Style="{StaticResource ModernScrollViewerStyle}"
+                            VerticalScrollBarVisibility="Auto" 
                             HorizontalScrollBarVisibility="Disabled"
-                            Padding="15">
+                            Padding="15"
+                            PanningMode="VerticalOnly"
+                            IsDeferredScrollingEnabled="False">
                     <ItemsControl x:Name="ResultsList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>

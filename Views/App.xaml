@@ -93,6 +93,125 @@
                 <Setter Property="Padding" Value="15,12"/>
                 <Setter Property="FontSize" Value="14"/>
                 <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="CaretBrush" Value="#FFFFFF"/>
+                <Setter Property="SelectionBrush" Value="#1DB954"/>
+                <Setter Property="SelectionOpacity" Value="0.5"/>
+            </Style>
+            
+            <!-- Custom ScrollBar Style -->
+            <Style x:Key="ModernScrollBarStyle" TargetType="ScrollBar">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Width" Value="8"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid x:Name="GridRoot">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="0.00001*"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="0.00001*"/>
+                                </Grid.RowDefinitions>
+                                
+                                <Border Grid.Row="1" 
+                                        Background="Transparent"
+                                        CornerRadius="4"
+                                        Width="8"/>
+                                
+                                <Track x:Name="PART_Track" 
+                                       Grid.Row="1"
+                                       IsDirectionReversed="True"
+                                       Focusable="False">
+                                    <Track.Thumb>
+                                        <Thumb x:Name="Thumb" 
+                                               Background="#404040"
+                                               BorderThickness="0"
+                                               Width="6"
+                                               Margin="1,0">
+                                            <Thumb.Style>
+                                                <Style TargetType="Thumb">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Thumb">
+                                                                <Border Background="{TemplateBinding Background}" 
+                                                                        CornerRadius="3"
+                                                                        BorderThickness="0"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#1DB954"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsDragging" Value="True">
+                                                            <Setter Property="Background" Value="#1ed760"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Thumb.Style>
+                                        </Thumb>
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageDownCommand" 
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Opacity="0"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageUpCommand" 
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Opacity="0"/>
+                                    </Track.DecreaseRepeatButton>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            
+            <!-- Custom ScrollViewer Style with Pretty Scrollbar -->
+            <Style x:Key="ModernScrollViewerStyle" TargetType="ScrollViewer">
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollViewer">
+                            <Grid x:Name="Grid" Background="{TemplateBinding Background}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                                        CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                                        CanHorizontallyScroll="False" 
+                                                        CanVerticallyScroll="False" 
+                                                        ContentTemplate="{TemplateBinding ContentTemplate}" 
+                                                        Content="{TemplateBinding Content}" 
+                                                        Grid.Column="0" 
+                                                        Grid.Row="0" 
+                                                        Margin="{TemplateBinding Padding}"/>
+                                
+                                <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                           AutomationProperties.AutomationId="VerticalScrollBar" 
+                                           Cursor="Arrow" 
+                                           Grid.Column="1" 
+                                           Grid.Row="0" 
+                                           Maximum="{TemplateBinding ScrollableHeight}" 
+                                           Minimum="0" 
+                                           Orientation="Vertical" 
+                                           ViewportSize="{TemplateBinding ViewportHeight}" 
+                                           Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                                           Style="{StaticResource ModernScrollBarStyle}"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

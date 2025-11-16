@@ -29,6 +29,7 @@ namespace MediaConverterToMP3.Views
         private List<System.Diagnostics.Process>? _activeProcesses;
         private readonly object _processLock = new object();
         private string _selectedSource = "Spotify"; // "Spotify" or "YouTube"
+        private string _selectedFormat = "MP3"; // "MP3" or "MP4" (only for YouTube)
         private bool _isSpotifyPlaylist = false;
         private bool _isDownloadingAll = false;
         private CancellationTokenSource? _downloadAllCancellationTokenSource = null;
@@ -94,6 +95,16 @@ namespace MediaConverterToMP3.Views
             InitializeSpotify();
             UpdateSourceSelector();
             LoadFilterIcon();
+            
+            // Focus search box when window loads so caret is visible immediately
+            this.Loaded += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    SearchTextBox.Focus();
+                    Keyboard.Focus(SearchTextBox);
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            };
         }
 
         private void LoadFilterIcon()
@@ -216,6 +227,9 @@ namespace MediaConverterToMP3.Views
                 TitleText.Text = "🎵 Spotify to MP3";
                 SubtitleText.Text = "Convert your favorite Spotify tracks to MP3";
 
+                // Hide format selector for Spotify
+                FormatSelectorPanel.Visibility = Visibility.Collapsed;
+
                 // Update tooltip
                 if (SearchTextBox.ToolTip is ToolTip tooltip)
                 {
@@ -255,8 +269,13 @@ namespace MediaConverterToMP3.Views
                     new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
 
-                TitleText.Text = "▶️ YouTube to MP3";
-                SubtitleText.Text = "Convert your favorite YouTube videos to MP3";
+                // Show format selector for YouTube
+                FormatSelectorPanel.Visibility = Visibility.Visible;
+                UpdateFormatSelector();
+
+                string formatText = _selectedFormat == "MP4" ? "MP4" : "MP3";
+                TitleText.Text = $"▶️ YouTube to {formatText}";
+                SubtitleText.Text = $"Convert your favorite YouTube videos to {formatText}";
 
                 // Update tooltip
                 if (SearchTextBox.ToolTip is ToolTip tooltip)
@@ -281,6 +300,147 @@ namespace MediaConverterToMP3.Views
                 _selectedSource = "YouTube";
             }
             UpdateSourceSelector();
+        }
+
+        private void UpdateFormatSelector()
+        {
+            if (_selectedFormat == "MP3")
+            {
+                // MP3 selected
+                MP3FormatSelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954"));
+                MP3FormatSelector.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = System.Windows.Media.Color.FromRgb(29, 185, 84),
+                    Direction = 270,
+                    ShadowDepth = 2,
+                    BlurRadius = 6,
+                    Opacity = 0.4
+                };
+                ((System.Windows.Controls.TextBlock)MP3FormatSelector.Child).Foreground = System.Windows.Media.Brushes.White;
+
+                // MP4 unselected
+                MP4FormatSelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
+                MP4FormatSelector.Effect = null;
+                ((System.Windows.Controls.TextBlock)MP4FormatSelector.Child).Foreground =
+                    new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
+            }
+            else // MP4
+            {
+                // MP4 selected
+                MP4FormatSelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1DB954"));
+                MP4FormatSelector.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = System.Windows.Media.Color.FromRgb(29, 185, 84),
+                    Direction = 270,
+                    ShadowDepth = 2,
+                    BlurRadius = 6,
+                    Opacity = 0.4
+                };
+                ((System.Windows.Controls.TextBlock)MP4FormatSelector.Child).Foreground = System.Windows.Media.Brushes.White;
+
+                // MP3 unselected
+                MP3FormatSelector.Background = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#282828"));
+                MP3FormatSelector.Effect = null;
+                ((System.Windows.Controls.TextBlock)MP3FormatSelector.Child).Foreground =
+                    new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#B3B3B3"));
+            }
+        }
+
+        private void FormatSelector_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var border = sender as System.Windows.Controls.Border;
+            if (border?.Tag?.ToString() == "MP3")
+            {
+                _selectedFormat = "MP3";
+            }
+            else if (border?.Tag?.ToString() == "MP4")
+            {
+                _selectedFormat = "MP4";
+            }
+            UpdateFormatSelector();
+            
+            // Update title and subtitle
+            if (_selectedSource == "YouTube")
+            {
+                string formatText = _selectedFormat == "MP4" ? "MP4" : "MP3";
+                TitleText.Text = $"▶️ YouTube to {formatText}";
+                SubtitleText.Text = $"Convert your favorite YouTube videos to {formatText}";
+            }
+            
+            // Re-check all tracks for the new format
+            RefreshTrackDownloadStatus();
+        }
+        
+        private void RefreshTrackDownloadStatus()
+        {
+            // Only refresh if we're on YouTube (where format matters)
+            if (_selectedSource != "YouTube")
+                return;
+            
+            foreach (var track in ResultsList.Items.OfType<TrackItem>())
+            {
+                // Skip tracks that are currently downloading or just downloaded in this session
+                if (track.IsDownloading || track.DownloadButtonText == "Downloaded ✓")
+                    continue;
+                
+                // Update status for all other tracks (including "Already Downloaded ✓" ones)
+                CheckAndUpdateTrackDownloadStatus(track);
+            }
+        }
+        
+        private void CheckAndUpdateTrackDownloadStatus(TrackItem track)
+        {
+            string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
+            string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
+            string baseFileName = $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}";
+            
+            if (_selectedSource == "YouTube")
+            {
+                // For YouTube: Check both MP3 and MP4
+                string mp3Path = Path.Combine(_downloadPath, $"{baseFileName}.mp3");
+                string mp4Path = Path.Combine(_downloadPath, $"{baseFileName}.mp4");
+                bool mp3Exists = File.Exists(mp3Path);
+                bool mp4Exists = File.Exists(mp4Path);
+                
+                // Check if the currently selected format exists
+                bool selectedFormatExists = (_selectedFormat == "MP4") ? mp4Exists : mp3Exists;
+                
+                // Allow download if the selected format doesn't exist (even if the other format exists)
+                track.CanDownload = !selectedFormatExists;
+                
+                // Update button text to show which formats are available
+                if (mp3Exists && mp4Exists)
+                {
+                    track.DownloadButtonText = "Already Downloaded ✓ (MP3+MP4)";
+                }
+                else if (mp3Exists)
+                {
+                    track.DownloadButtonText = _selectedFormat == "MP3" ? "Already Downloaded ✓ (MP3)" : "Download (MP3 exists)";
+                }
+                else if (mp4Exists)
+                {
+                    track.DownloadButtonText = _selectedFormat == "MP4" ? "Already Downloaded ✓ (MP4)" : "Download (MP4 exists)";
+                }
+                else
+                {
+                    track.DownloadButtonText = "Download";
+                }
+            }
+            else
+            {
+                // For Spotify: Only check MP3
+                string mp3Path = Path.Combine(_downloadPath, $"{baseFileName}.mp3");
+                bool mp3Exists = File.Exists(mp3Path);
+                
+                track.CanDownload = !mp3Exists;
+                track.DownloadButtonText = mp3Exists ? "Already Downloaded ✓" : "Download";
+            }
         }
 
         private async void InitializeSpotify()
@@ -610,7 +770,7 @@ namespace MediaConverterToMP3.Views
                 }
 
                 // Get video information
-                string infoArgs = $"--dump-json --no-playlist \"https://www.youtube.com/watch?v={videoId}\"";
+                string infoArgs = $"--dump-json --no-playlist --extractor-args \"youtube:player_client=android\" \"https://www.youtube.com/watch?v={videoId}\"";
                 var processInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = ytDlpPath,
@@ -777,8 +937,6 @@ namespace MediaConverterToMP3.Views
                         // Use fallback for filename if empty, but keep metadata empty
                         string fileNameTitle = string.IsNullOrWhiteSpace(title) ? "Unknown Title" : title;
                         string fileNameUploader = string.IsNullOrWhiteSpace(uploader) ? "Unknown Artist" : uploader;
-                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameUploader)}.mp3");
-                        bool alreadyExists = File.Exists(outputPath);
 
                         var trackItem = new TrackItem
                         {
@@ -791,9 +949,12 @@ namespace MediaConverterToMP3.Views
                             Genre = genre,
                             Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
                             ImageUrl = thumbnail,
-                            CanDownload = !alreadyExists,
-                            DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                            CanDownload = true, // Will be updated by CheckAndUpdateTrackDownloadStatus
+                            DownloadButtonText = "Download" // Will be updated by CheckAndUpdateTrackDownloadStatus
                         };
+                        
+                        // Check download status for both formats
+                        CheckAndUpdateTrackDownloadStatus(trackItem);
 
                         // Update UI on the main thread
                         Dispatcher.Invoke(() =>
@@ -1096,9 +1257,6 @@ namespace MediaConverterToMP3.Views
                             if (string.IsNullOrEmpty(videoId))
                                 continue;
 
-                            string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(title)} - {SanitizeFileName(uploader)}.mp3");
-                            bool alreadyExists = File.Exists(outputPath);
-
                             var trackItem = new TrackItem
                             {
                                 Id = videoId,
@@ -1110,9 +1268,12 @@ namespace MediaConverterToMP3.Views
                                 Genre = genre,
                                 Duration = duration.HasValue ? TimeSpan.FromSeconds(duration.Value) : TimeSpan.Zero,
                                 ImageUrl = thumbnail,
-                                CanDownload = !alreadyExists,
-                                DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                                CanDownload = true, // Will be updated by CheckAndUpdateTrackDownloadStatus
+                                DownloadButtonText = "Download" // Will be updated by CheckAndUpdateTrackDownloadStatus
                             };
+                            
+                            // Check download status for both formats
+                            CheckAndUpdateTrackDownloadStatus(trackItem);
 
                             tracksToAdd.Add(trackItem);
                             resultCount++;
@@ -1222,9 +1383,6 @@ namespace MediaConverterToMP3.Views
                     imageUrl = mediumImage?.Url ?? (trackResponse.Album.Images.Length > 0 ? trackResponse.Album.Images[0].Url : null);
                 }
 
-                string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(trackResponse.Name)} - {SanitizeFileName(string.Join(", ", trackResponse.Artists?.Select(a => a.Name) ?? Array.Empty<string>()))}.mp3");
-                bool alreadyExists = File.Exists(outputPath);
-
                 var trackItem = new TrackItem
                 {
                     Id = trackResponse.Id,
@@ -1235,9 +1393,12 @@ namespace MediaConverterToMP3.Views
                     Year = ExtractYearFromReleaseDate(trackResponse.Album?.ReleaseDate, trackResponse.Album?.ReleaseDatePrecision),
                     Duration = TimeSpan.FromMilliseconds(trackResponse.DurationMs),
                     ImageUrl = imageUrl,
-                    CanDownload = !alreadyExists,
-                    DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                    CanDownload = true, // Will be updated by CheckAndUpdateTrackDownloadStatus
+                    DownloadButtonText = "Download" // Will be updated by CheckAndUpdateTrackDownloadStatus
                 };
+                
+                // Check download status (Spotify only supports MP3)
+                CheckAndUpdateTrackDownloadStatus(trackItem);
 
                 _allTracks.Clear();
                 _tracks.Clear();
@@ -1293,9 +1454,6 @@ namespace MediaConverterToMP3.Views
                                 imageUrl = mediumImage?.Url ?? (item.Track.Album.Images.Length > 0 ? item.Track.Album.Images[0].Url : null);
                             }
 
-                            string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(item.Track.Name)} - {SanitizeFileName(string.Join(", ", item.Track.Artists?.Select(a => a.Name) ?? Array.Empty<string>()))}.mp3");
-                            bool alreadyExists = File.Exists(outputPath);
-
                             var trackItem = new TrackItem
                             {
                                 Id = item.Track.Id,
@@ -1306,9 +1464,12 @@ namespace MediaConverterToMP3.Views
                                 Year = ExtractYearFromReleaseDate(item.Track.Album?.ReleaseDate, item.Track.Album?.ReleaseDatePrecision),
                                 Duration = TimeSpan.FromMilliseconds(item.Track.DurationMs),
                                 ImageUrl = imageUrl,
-                                CanDownload = !alreadyExists,
-                                DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                                CanDownload = true, // Will be updated by CheckAndUpdateTrackDownloadStatus
+                                DownloadButtonText = "Download" // Will be updated by CheckAndUpdateTrackDownloadStatus
                             };
+                            
+                            // Check download status (Spotify only supports MP3)
+                            CheckAndUpdateTrackDownloadStatus(trackItem);
                             _allTracks.Add(trackItem);
                             _tracks.Add(trackItem);
                             totalLoaded++;
@@ -1369,9 +1530,6 @@ namespace MediaConverterToMP3.Views
                         imageUrl = mediumImage?.Url ?? (track.Album.Images.Length > 0 ? track.Album.Images[0].Url : null);
                     }
 
-                    string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(track.Name)} - {SanitizeFileName(string.Join(", ", track.Artists.Select(a => a.Name)))}.mp3");
-                    bool alreadyExists = File.Exists(outputPath);
-
                     var trackItem = new TrackItem
                     {
                         Id = track.Id,
@@ -1382,9 +1540,12 @@ namespace MediaConverterToMP3.Views
                         Year = ExtractYearFromReleaseDate(track.Album?.ReleaseDate, track.Album?.ReleaseDatePrecision),
                         Duration = TimeSpan.FromMilliseconds(track.DurationMs),
                         ImageUrl = imageUrl,
-                        CanDownload = !alreadyExists,
-                        DownloadButtonText = alreadyExists ? "Already Downloaded ✓" : "Download"
+                        CanDownload = true, // Will be updated by CheckAndUpdateTrackDownloadStatus
+                        DownloadButtonText = "Download" // Will be updated by CheckAndUpdateTrackDownloadStatus
                     };
+                    
+                    // Check download status (Spotify only supports MP3)
+                    CheckAndUpdateTrackDownloadStatus(trackItem);
                     _allTracks.Add(trackItem);
                     _tracks.Add(trackItem);
                 }
@@ -1449,8 +1610,13 @@ namespace MediaConverterToMP3.Views
                 return;
             }
 
-            // Use saved download path
-            string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(track.Title)} - {SanitizeFileName(track.Artist)}.mp3");
+            // Use saved download path - determine extension based on source and format
+            string extension = ".mp3";
+            if (_selectedSource == "YouTube" && _selectedFormat == "MP4")
+            {
+                extension = ".mp4";
+            }
+            string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(track.Title)} - {SanitizeFileName(track.Artist)}{extension}");
 
             // Ensure directory exists
             if (!Directory.Exists(_downloadPath))
@@ -1528,6 +1694,8 @@ namespace MediaConverterToMP3.Views
 
                 // Reset download state
                 track.IsDownloading = false;
+                track.ShowProgress = false; // Hide progress bar
+                track.DownloadProgress = 0; // Reset progress
                 _downloadCancellationTokenSource?.Dispose();
                 _downloadCancellationTokenSource = null;
 
@@ -1553,20 +1721,31 @@ namespace MediaConverterToMP3.Views
                 {
                     track.CanDownload = true;
                     track.DownloadButtonText = "Download";
+                    track.ShowProgress = false;
+                    track.DownloadProgress = 0;
                     StatusText.Text = "Download cancelled successfully.";
                 }
                 else
                 {
                     track.CanDownload = true;
                     track.DownloadButtonText = "Download";
+                    track.ShowProgress = false;
+                    track.DownloadProgress = 0;
                     StatusText.Text = $"Download failed: {ex.Message}";
 
                     // Show custom error dialog only for actual errors, not cancellations
-                    var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
+                    // For MP4 downloads, don't show error dialog on cancellation (handled above)
+                    bool isMP4Cancel = _selectedSource == "YouTube" && _selectedFormat == "MP4" && 
+                                      (ex.Message.Contains("cancelled") || ex.Message.Contains("canceled"));
+                    
+                    if (!isMP4Cancel)
                     {
-                        Owner = this
-                    };
-                    errorDialog.ShowDialog();
+                        var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
+                        {
+                            Owner = this
+                        };
+                        errorDialog.ShowDialog();
+                    }
                 }
             }
         }
@@ -1624,7 +1803,8 @@ namespace MediaConverterToMP3.Views
                     try
                     {
                         // Fetch full metadata for this video
-                        string infoArgs = $"--dump-json --no-playlist --no-warnings --quiet \"https://www.youtube.com/watch?v={track.Id}\"";
+                        // Using android client to avoid JS runtime requirements
+                        string infoArgs = $"--dump-json --no-playlist --no-warnings --quiet --extractor-args \"youtube:player_client=android\" \"https://www.youtube.com/watch?v={track.Id}\"";
                         var infoProcessInfo = new System.Diagnostics.ProcessStartInfo
                         {
                             FileName = ytDlpPath,
@@ -1739,10 +1919,10 @@ namespace MediaConverterToMP3.Views
                     catch { }
                 }
 
-                // Step 1: Download best audio available (without conversion)
+                // Step 1: Download based on format
                 string tempDir = outputDir ?? Path.GetTempPath();
                 string tempGuid = Guid.NewGuid().ToString();
-                string tempAudioPathPattern = Path.Combine(tempDir, $"temp_{tempGuid}");
+                string tempPathPattern = Path.Combine(tempDir, $"temp_{tempGuid}");
 
                 // Determine if searchQuery is a direct URL or needs ytsearch
                 string downloadUrl;
@@ -1757,9 +1937,20 @@ namespace MediaConverterToMP3.Views
                     downloadUrl = $"ytsearch:{searchQuery}";
                 }
 
-                // Download best audio format available (yt-dlp will choose best format)
-                // Using --no-playlist and --concurrent-fragments 4 for faster downloads
-                string downloadArgs = $"-x -f bestaudio --no-playlist --concurrent-fragments 4 --progress --newline --default-search \"ytsearch\" --output \"{tempAudioPathPattern}.%(ext)s\" \"{downloadUrl}\"";
+                // Determine format and download arguments
+                bool isMP4 = _selectedSource == "YouTube" && _selectedFormat == "MP4";
+                string downloadArgs;
+                if (isMP4)
+                {
+                         // Use format selector that avoids problematic formats
+                    downloadArgs = $"-f \"bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best\" --no-playlist --concurrent-fragments 8 --progress --newline --default-search \"ytsearch\" --output \"{tempPathPattern}.%(ext)s\" \"{downloadUrl}\"";
+                }
+                else
+                {
+                    // For MP3: Download best audio format (will convert later)
+                    // Don't use android client for MP3 as it requires GVS PO Token
+                    downloadArgs = $"-x -f bestaudio --no-playlist --concurrent-fragments 4 --progress --newline --default-search \"ytsearch\" --output \"{tempPathPattern}.%(ext)s\" \"{downloadUrl}\"";
+                }
 
                 // Show progress bar
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -1809,10 +2000,11 @@ namespace MediaConverterToMP3.Views
                             var progressMatch = System.Text.RegularExpressions.Regex.Match(e.Data, @"\[download\]\s+(\d+\.?\d*)%");
                             if (progressMatch.Success && double.TryParse(progressMatch.Groups[1].Value, out double progress))
                             {
-                                // Update progress more frequently (download phase is 50% of total)
+                                // Update progress - for MP4, download is 100% of process; for MP3, it's 50%
                                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    double totalProgress = progress * 0.5; // Download is 50% of total process
+                                    bool isMP4Local = _selectedSource == "YouTube" && _selectedFormat == "MP4";
+                                    double totalProgress = isMP4Local ? progress : (progress * 0.5); // MP4: 100%, MP3: 50% (conversion is other 50%)
                                     track.DownloadProgress = totalProgress;
                                     // Don't update StatusText here - let the timer handle progressive display
                                 }, System.Windows.Threading.DispatcherPriority.Background);
@@ -1830,10 +2022,11 @@ namespace MediaConverterToMP3.Views
                             var progressMatch = System.Text.RegularExpressions.Regex.Match(e.Data, @"\[download\]\s+(\d+\.?\d*)%");
                             if (progressMatch.Success && double.TryParse(progressMatch.Groups[1].Value, out double progress))
                             {
-                                // Update progress more frequently (download phase is 50% of total)
+                                // Update progress - for MP4, download is 100% of process; for MP3, it's 50%
                                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    track.DownloadProgress = progress * 0.5; // Download is 50% of total process
+                                    bool isMP4Local = _selectedSource == "YouTube" && _selectedFormat == "MP4";
+                                    track.DownloadProgress = isMP4Local ? progress : (progress * 0.5); // MP4: 100%, MP3: 50% (conversion is other 50%)
                                 }, System.Windows.Threading.DispatcherPriority.Background);
                             }
                         }
@@ -1885,10 +2078,47 @@ namespace MediaConverterToMP3.Views
                 }
                 else
                 {
-                    throw new Exception("Downloaded audio file not found. The download may have failed.");
+                    throw new Exception("Downloaded file not found. The download may have failed.");
                 }
 
-                // Step 2: Convert to 320kbps MP3 using ffmpeg directly
+                // Check if we're downloading MP4 (no conversion needed)
+                if (isMP4)
+                {
+                    // For MP4: Just move/rename the file to the output path
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        track.DownloadProgress = 100;
+                    }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    // Move the downloaded file to the final output path
+                    if (File.Exists(downloadedFile))
+                    {
+                        File.Move(downloadedFile, outputPath, true);
+                    }
+                    else
+                    {
+                        throw new Exception("Downloaded video file not found after download completed.");
+                    }
+
+                    // Clean up temp file if it still exists
+                    try
+                    {
+                        if (File.Exists(downloadedFile))
+                            File.Delete(downloadedFile);
+                    }
+                    catch { }
+
+                    // Hide progress bar for MP4 (no conversion step)
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        track.ShowProgress = false;
+                        track.DownloadProgress = 0;
+                    }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    return; // Done for MP4
+                }
+
+                // Step 2: Convert to 320kbps MP3 using ffmpeg directly (only for MP3)
                 // This gives us full control over the encoding
                 // Update progress to show we're converting (50% done)
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -2459,7 +2689,13 @@ namespace MediaConverterToMP3.Views
 
                         string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
                         string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
-                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp3");
+                        // Use the currently selected format (MP3 or MP4 for YouTube)
+                        string extension = ".mp3";
+                        if (_selectedSource == "YouTube" && _selectedFormat == "MP4")
+                        {
+                            extension = ".mp4";
+                        }
+                        string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}{extension}");
 
                         if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
                         {
