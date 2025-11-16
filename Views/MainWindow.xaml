@@ -308,7 +308,28 @@
                                                        FontSize="13"
                                                        Foreground="{StaticResource SecondaryTextColor}"
                                                        TextTrimming="CharacterEllipsis"
-                                                       Margin="0,0,0,8"/>
+                                                       Margin="0,0,0,4"/>
+                                            
+                                            <!-- Duration and Size -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <TextBlock Text="⏱️ " 
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource SecondaryTextColor}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding FormattedDuration}" 
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource SecondaryTextColor}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,15,0"/>
+                                                <TextBlock Text="📦 " 
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource SecondaryTextColor}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding EstimatedSize}" 
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource SecondaryTextColor}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
                                             
                                             <!-- Progress Bar -->
                                             <Grid Visibility="{Binding ShowProgress}">

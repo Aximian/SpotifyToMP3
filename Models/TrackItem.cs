@@ -20,8 +20,65 @@ namespace SpotifyToMP3.Models
         public string Year { get; set; } = "";
         public string Genre { get; set; } = "";
         public string TrackNumber { get; set; } = "";
-        public TimeSpan Duration { get; set; }
+        private TimeSpan _duration;
+        public TimeSpan Duration 
+        { 
+            get => _duration;
+            set
+            {
+                _duration = value;
+                OnPropertyChanged(nameof(Duration));
+                OnPropertyChanged(nameof(FormattedDuration));
+                OnPropertyChanged(nameof(EstimatedSize));
+            }
+        }
         public string? ImageUrl { get; set; }
+        
+        public string FormattedDuration
+        {
+            get
+            {
+                try
+                {
+                    if (_duration.TotalSeconds <= 0)
+                        return "";
+                    
+                    if (_duration.TotalHours >= 1)
+                        return $"{(int)_duration.TotalHours}:{_duration.Minutes:D2}:{_duration.Seconds:D2}";
+                    else
+                        return $"{_duration.Minutes}:{_duration.Seconds:D2}";
+                }
+                catch
+                {
+                    return "";
+                }
+            }
+        }
+        
+        public string EstimatedSize
+        {
+            get
+            {
+                try
+                {
+                    if (_duration.TotalSeconds <= 0)
+                        return "";
+                    
+                    // Estimate MP3 size: 320kbps = 40KB per second
+                    double totalSeconds = Math.Abs(_duration.TotalSeconds);
+                    double sizeInMB = (320.0 / 8.0) * totalSeconds / 1024.0;
+                    
+                    if (sizeInMB < 1)
+                        return $"{(sizeInMB * 1024):F0} KB";
+                    else
+                        return $"{sizeInMB:F1} MB";
+                }
+                catch
+                {
+                    return "";
+                }
+            }
+        }
 
         public string DownloadButtonText
         {
