@@ -209,14 +209,31 @@ namespace MediaConverterToMP3.Views
 
                     if (tempFileExists)
                     {
-                        // Show Continue/Clear buttons for stopped download
-                        track.HasStoppedDownload = true;
-                        track.ShowContinueButton = true;
-                        track.ShowClearButton = true;
-                        track.DownloadButtonText = "";
-                        track.CanDownload = false;
-                        track.DownloadProgress = cacheEntry.Progress;
-                        track.ShowProgress = true;
+                        // Only show individual Continue/Clear buttons for non-playlist downloads
+                        // For playlists, Continue/Clear should be handled by Download All buttons
+                        if (!_isSpotifyPlaylist)
+                        {
+                            // Show Continue/Clear buttons for stopped download (individual track)
+                            track.HasStoppedDownload = true;
+                            track.ShowContinueButton = true;
+                            track.ShowClearButton = true;
+                            track.DownloadButtonText = "";
+                            track.CanDownload = false;
+                            track.DownloadProgress = cacheEntry.Progress;
+                            track.ShowProgress = true;
+                        }
+                        else
+                        {
+                            // Playlist download - don't show individual Continue/Clear buttons
+                            // Show as queued/stopped, handled by Download All buttons
+                            track.HasStoppedDownload = false;
+                            track.ShowContinueButton = false;
+                            track.ShowClearButton = false;
+                            track.DownloadButtonText = "Queued...";
+                            track.CanDownload = false;
+                            track.DownloadProgress = cacheEntry.Progress;
+                            track.ShowProgress = true;
+                        }
                         
                         // Continue with other checks (Spotify button, etc.) but skip download status check
                         // Hide Spotify button for Spotify source (no need to add Spotify tracks to Spotify Local)

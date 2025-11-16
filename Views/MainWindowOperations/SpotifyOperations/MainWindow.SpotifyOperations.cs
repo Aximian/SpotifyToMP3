@@ -186,13 +186,59 @@ namespace MediaConverterToMP3.Views
 
             StatusText.Text = $"Loaded {_tracks.Count} tracks from playlist";
 
+            // After loading playlist, check if any tracks have cache entries (stopped downloads)
+            // If yes, restore the Download All stopped state and show Continue/Clear All buttons
+            var cache = Models.DownloadCache.Load();
+            bool hasStoppedDownloads = false;
+            foreach (var track in _tracks)
+            {
+                var cacheEntry = cache.GetEntry(track.Id);
+                if (cacheEntry != null && cacheEntry.Source == "Spotify" && cacheEntry.Format == "MP3")
+                {
+                    // Check if temp file exists
+                    bool tempFileExists = false;
+                    if (!string.IsNullOrEmpty(cacheEntry.TempFilePattern))
+                    {
+                        string? dir = System.IO.Path.GetDirectoryName(cacheEntry.TempFilePattern);
+                        if (!string.IsNullOrEmpty(dir) && System.IO.Directory.Exists(dir))
+                        {
+                            string pattern = System.IO.Path.GetFileName(cacheEntry.TempFilePattern) + ".*";
+                            var files = System.IO.Directory.GetFiles(dir, pattern);
+                            tempFileExists = files.Length > 0;
+                        }
+                    }
+                    if (tempFileExists && cacheEntry.Progress > 0)
+                    {
+                        hasStoppedDownloads = true;
+                        break;
+                    }
+                }
+            }
+            
+            // If we found stopped downloads, restore the stopped state
+            if (hasStoppedDownloads)
+            {
+                _isDownloadAllStopped = true;
+                DownloadAllButton.Visibility = System.Windows.Visibility.Collapsed;
+                ContinueAllButton.Visibility = System.Windows.Visibility.Visible;
+                ClearAllButton.Visibility = System.Windows.Visibility.Visible;
+            }
+            else
+            {
+                _isDownloadAllStopped = false;
+            }
+
             // Show filter and download all button (only for playlists, not for search)
             if (_tracks.Count > 0)
             {
                 FilterTextBox.Visibility = Visibility.Visible;
                 if (_isSpotifyPlaylist)
                 {
-                    DownloadAllButton.Visibility = Visibility.Visible;
+                    // Only show Download All button if not stopped (if stopped, Continue/Clear All buttons are already shown)
+                    if (!_isDownloadAllStopped)
+                    {
+                        DownloadAllButton.Visibility = Visibility.Visible;
+                    }
                 }
                 else
                 {

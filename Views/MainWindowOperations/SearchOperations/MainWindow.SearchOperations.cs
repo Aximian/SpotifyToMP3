@@ -45,6 +45,10 @@ namespace MediaConverterToMP3.Views
                 _allTracks.Clear();
                 FilterTextBox.Visibility = Visibility.Collapsed;
                 DownloadAllButton.Visibility = Visibility.Collapsed;
+                
+                // Don't reset Download All stopped state here - it will be restored after loading tracks if cache entries exist
+                // Only reset if it's not a playlist search
+                _isDownloadingAll = false;
 
                 if (_selectedSource == "Spotify")
                 {
