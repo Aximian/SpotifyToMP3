@@ -85,3 +85,8 @@ config.json
 *.secrets.json
 
 .env
+
+## Build release artifacts
+MediaConverterToMP3-Release/
+MediaConverterToMP3-Release.zip
+build-release.ps1
