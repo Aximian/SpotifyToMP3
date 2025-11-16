@@ -21,17 +21,17 @@ namespace MediaConverterToMP3.Views
 
             if (track == null) return;
             
-            // Prevent individual downloads when Download All is running
-            if (_isDownloadingAll)
+            // Prevent individual downloads when Download All is running or stopped
+            if (_isDownloadingAll || (_isDownloadAllStopped && _isSpotifyPlaylist && _selectedSource == "Spotify"))
             {
-                StatusText.Text = "Please wait for Download All to complete or stop it first.";
-                return;
-            }
-
-            // Don't show Continue/Clear on individual buttons when Download All is active
-            if (_isDownloadAllStopped && _isSpotifyPlaylist && _selectedSource == "Spotify")
-            {
-                StatusText.Text = "Use Continue All or Clear All buttons to manage stopped downloads.";
+                if (_isDownloadingAll)
+                {
+                    StatusText.Text = "Please wait for Download All to complete or stop it first.";
+                }
+                else
+                {
+                    StatusText.Text = "Use Continue All or Clear All buttons to manage stopped downloads.";
+                }
                 return;
             }
 
@@ -135,7 +135,7 @@ namespace MediaConverterToMP3.Views
                 // Set these in the correct order to ensure UI updates
                 track.IsDownloading = false;
                 track.DownloadButtonText = ""; // Hide main button first
-                track.CanDownload = false;
+                track.CanDownload = false; // Make download button unclickable
                 track.HasStoppedDownload = true;
                 track.ShowContinueButton = true;
                 track.ShowClearButton = true;
@@ -314,11 +314,11 @@ namespace MediaConverterToMP3.Views
                     // Don't reset here - the stop handler above already sets Continue/Clear buttons
                     // Just ensure state is correct
                     if (!track.HasStoppedDownload)
-                    {
-                        track.CanDownload = true;
-                        track.DownloadButtonText = "Download";
-                        track.ShowProgress = false;
-                        track.DownloadProgress = 0;
+                {
+                    track.CanDownload = true;
+                    track.DownloadButtonText = "Download";
+                    track.ShowProgress = false;
+                    track.DownloadProgress = 0;
                     }
                     StatusText.Text = "Download cancelled successfully.";
                 }
@@ -1127,26 +1127,26 @@ namespace MediaConverterToMP3.Views
                 else
                 {
                     _isDownloadAllStopped = false;
-                    DownloadAllButton.Content = "Download All";
-                    DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                DownloadAllButton.Content = "Download All";
+                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
                     ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
                     ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
-                    StatusText.Text = "Download cancelled successfully.";
+                StatusText.Text = "Download cancelled successfully.";
 
-                    // Reset all queued/downloading tracks (but keep already downloaded ones)
-                    foreach (var track in _tracks)
+                // Reset all queued/downloading tracks (but keep already downloaded ones)
+                foreach (var track in _tracks)
+                {
+                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
                     {
-                        if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
-                        {
-                            // Keep as downloaded
-                            continue;
-                        }
-                        else
-                        {
-                            // Reset to Download
-                            track.IsDownloading = false;
-                            track.CanDownload = true;
-                            track.DownloadButtonText = "Download";
+                        // Keep as downloaded
+                        continue;
+                    }
+                    else
+                    {
+                        // Reset to Download
+                        track.IsDownloading = false;
+                        track.CanDownload = true;
+                        track.DownloadButtonText = "Download";
                             track.HasStoppedDownload = false;
                             track.ShowContinueButton = false;
                             track.ShowClearButton = false;
@@ -1178,9 +1178,24 @@ namespace MediaConverterToMP3.Views
                 ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
                 ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
 
-                var tracksToDownload = _tracks?.Where(t => t != null && t.CanDownload).ToList() ?? new List<TrackItem>();
-                int totalTracks = tracksToDownload.Count;
-                int downloadedCount = 0;
+                // Include tracks that can be downloaded OR are queued (stopped tracks to resume)
+                var tracksToDownload = _tracks?.Where(t => t != null && 
+                    (t.CanDownload || t.DownloadButtonText == "Queued..." || t.DownloadButtonText == "Downloading..."))
+                    .ToList() ?? new List<TrackItem>();
+                
+                // Exclude already downloaded tracks from the download queue
+                tracksToDownload = tracksToDownload.Where(t => 
+                    t.DownloadButtonText != "Downloaded ✓" && 
+                    t.DownloadButtonText != "Already Downloaded ✓").ToList();
+                
+                // Count already downloaded tracks to adjust the starting count
+                int alreadyDownloadedCount = _tracks?.Count(t => 
+                    t != null && (t.DownloadButtonText == "Downloaded ✓" || t.DownloadButtonText == "Already Downloaded ✓")) ?? 0;
+                
+                // Total tracks is the total number of tracks in the playlist
+                int totalTracks = _tracks?.Count(t => t != null) ?? 0;
+                
+                int downloadedCount = alreadyDownloadedCount;
 
                 if (totalTracks == 0)
                 {
@@ -1197,14 +1212,35 @@ namespace MediaConverterToMP3.Views
                     return;
                 }
 
-                // Disable all individual download buttons during Download All
+                // Set up all tracks for Download All (including queued ones that will resume)
                 foreach (var track in tracksToDownload)
                 {
                     if (track != null)
                     {
-                        track.CanDownload = false;
-                        track.DownloadButtonText = "Queued...";
+                        // If it's already queued (stopped), keep it queued but ensure CanDownload is false
+                        if (track.DownloadButtonText != "Queued...")
+                        {
+                            track.CanDownload = false; // Disable individual download buttons
+                            track.DownloadButtonText = "Queued...";
+                        }
+                        else
+                        {
+                            // Ensure CanDownload is false for queued tracks too
+                            track.CanDownload = false;
+                        }
                         track.IsDownloading = false;
+                    }
+                }
+                
+                // Also disable download buttons for all tracks (including already downloaded ones)
+                if (_tracks != null)
+                {
+                    foreach (var track in _tracks)
+                    {
+                        if (track != null && track.DownloadButtonText != "Downloaded ✓" && track.DownloadButtonText != "Already Downloaded ✓")
+                        {
+                            track.CanDownload = false; // Disable individual download buttons during Download All
+                        }
                     }
                 }
                 
@@ -1252,19 +1288,26 @@ namespace MediaConverterToMP3.Views
                         track.DownloadButtonText = "Downloading...";
                         _currentDownloadingTrack = track; // Set for progress tracking
                         
-                        // Preserve progress from cache if resuming
+                        // Preserve progress from cache if resuming - start from where it ended
                         var resumeCache = DownloadCache.Load();
                         DownloadCacheEntry? resumeCacheEntry = resumeCache.GetEntry(track.Id);
                         if (resumeCacheEntry != null && resumeCacheEntry.Progress > 0)
                         {
+                            // Start progress bar from cached percentage
                             track.DownloadProgress = resumeCacheEntry.Progress;
-                            track.ShowProgress = true;
+                            track.ShowProgress = true; // Show progress bar
                             _displayedProgressPercent = (int)resumeCacheEntry.Progress;
+                            // Ensure progress bar reflects the cached progress immediately
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                track.DownloadProgress = resumeCacheEntry.Progress;
+                            }, System.Windows.Threading.DispatcherPriority.Send);
                         }
                         else
                         {
                             _displayedProgressPercent = 0;
                             track.DownloadProgress = 0;
+                            track.ShowProgress = true; // Always show progress bar during download
                             resumeCacheEntry = null; // No cache entry, start fresh
                         }
 
@@ -1396,29 +1439,34 @@ namespace MediaConverterToMP3.Views
                 // Only reset if not stopped (if stopped, Continue/Clear All buttons are shown and progress is preserved)
                 if (!_isDownloadAllStopped)
                 {
-                    DownloadAllButton.Content = "Download All";
-                    DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                DownloadAllButton.Content = "Download All";
+                DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
                     ContinueAllButton.Visibility = System.Windows.Visibility.Collapsed;
                     ClearAllButton.Visibility = System.Windows.Visibility.Collapsed;
 
-                    // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
-                    foreach (var track in _tracks)
+                // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
+                foreach (var track in _tracks)
+                {
+                    if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
                     {
-                        if (track.DownloadButtonText == "Downloaded ✓" || track.DownloadButtonText == "Already Downloaded ✓")
+                        // Keep as downloaded
+                        continue;
+                    }
+                    else if (track.DownloadButtonText == "Queued..." || track.DownloadButtonText == "Downloading..." || track.IsDownloading)
+                    {
+                        // Reset to Download (only if Download All is not stopped)
+                        track.IsDownloading = false;
+                        // Only re-enable if Download All is not stopped
+                        if (!_isDownloadAllStopped)
                         {
-                            // Keep as downloaded
-                            continue;
-                        }
-                        else if (track.DownloadButtonText == "Queued..." || track.DownloadButtonText == "Downloading..." || track.IsDownloading)
-                        {
-                            // Reset to Download
-                            track.IsDownloading = false;
-                            track.CanDownload = true;
+                            track.CanDownload = true; // Re-enable individual download buttons
                             track.DownloadButtonText = "Download";
                             track.ShowProgress = false;
                             track.DownloadProgress = 0;
                         }
+                        // If stopped, keep CanDownload = false and preserve progress/state
                     }
+                }
                 }
                 // If stopped, progress is preserved and Continue/Clear All buttons are shown (handled in stop handler)
 
