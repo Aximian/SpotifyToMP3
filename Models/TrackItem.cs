@@ -21,8 +21,8 @@ namespace MediaConverterToMP3.Models
         public string Genre { get; set; } = "";
         public string TrackNumber { get; set; } = "";
         private TimeSpan _duration;
-        public TimeSpan Duration 
-        { 
+        public TimeSpan Duration
+        {
             get => _duration;
             set
             {
@@ -34,8 +34,8 @@ namespace MediaConverterToMP3.Models
         }
         public string? ImageUrl { get; set; }
         private bool _isDownloading = false;
-        public bool IsDownloading 
-        { 
+        public bool IsDownloading
+        {
             get => _isDownloading;
             set
             {
@@ -53,7 +53,7 @@ namespace MediaConverterToMP3.Models
                 }
             }
         }
-        
+
         public string FormattedDuration
         {
             get
@@ -62,7 +62,7 @@ namespace MediaConverterToMP3.Models
                 {
                     if (_duration.TotalSeconds <= 0)
                         return "";
-                    
+
                     if (_duration.TotalHours >= 1)
                         return $"{(int)_duration.TotalHours}:{_duration.Minutes:D2}:{_duration.Seconds:D2}";
                     else
@@ -74,7 +74,7 @@ namespace MediaConverterToMP3.Models
                 }
             }
         }
-        
+
         public string EstimatedSize
         {
             get
@@ -83,11 +83,11 @@ namespace MediaConverterToMP3.Models
                 {
                     if (_duration.TotalSeconds <= 0)
                         return "";
-                    
+
                     // Estimate MP3 size: 320kbps = 40KB per second
                     double totalSeconds = Math.Abs(_duration.TotalSeconds);
                     double sizeInMB = (320.0 / 8.0) * totalSeconds / 1024.0;
-                    
+
                     if (sizeInMB < 1)
                         return $"{(sizeInMB * 1024):F0} KB";
                     else

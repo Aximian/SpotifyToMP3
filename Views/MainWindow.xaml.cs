@@ -674,7 +674,7 @@ namespace MediaConverterToMP3.Views
                         {
                             string? uploadDate = videoInfo?.upload_date?.ToString();
                             string? releaseDate = videoInfo?.release_date?.ToString();
-                            
+
                             string dateStr = releaseDate ?? uploadDate ?? "";
                             if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 4)
                             {
@@ -690,7 +690,7 @@ namespace MediaConverterToMP3.Views
                         {
                             var tags = videoInfo?.tags;
                             var categories = videoInfo?.categories;
-                            
+
                             if (tags != null)
                             {
                                 var tagsArray = tags as Newtonsoft.Json.Linq.JArray;
@@ -717,7 +717,7 @@ namespace MediaConverterToMP3.Views
                                     }
                                 }
                             }
-                            
+
                             if (string.IsNullOrEmpty(genre) && categories != null)
                             {
                                 var categoriesArray = categories as Newtonsoft.Json.Linq.JArray;
@@ -752,7 +752,7 @@ namespace MediaConverterToMP3.Views
                                         album = albumMatch.Groups[1].Value.Trim();
                                     }
                                 }
-                                
+
                                 // Fallback to channel name if no album found
                                 if (string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(channel))
                                 {
@@ -958,7 +958,7 @@ namespace MediaConverterToMP3.Views
                             {
                                 string? uploadDate = videoInfo?.upload_date?.ToString();
                                 string? releaseDate = videoInfo?.release_date?.ToString();
-                                
+
                                 string dateStr = releaseDate ?? uploadDate ?? "";
                                 if (!string.IsNullOrEmpty(dateStr) && dateStr.Length >= 4)
                                 {
@@ -974,7 +974,7 @@ namespace MediaConverterToMP3.Views
                             {
                                 var tags = videoInfo?.tags;
                                 var categories = videoInfo?.categories;
-                                
+
                                 if (tags != null)
                                 {
                                     var tagsArray = tags as Newtonsoft.Json.Linq.JArray;
@@ -1001,7 +1001,7 @@ namespace MediaConverterToMP3.Views
                                         }
                                     }
                                 }
-                                
+
                                 if (string.IsNullOrEmpty(genre) && categories != null)
                                 {
                                     var categoriesArray = categories as Newtonsoft.Json.Linq.JArray;
@@ -1036,7 +1036,7 @@ namespace MediaConverterToMP3.Views
                                             album = albumMatch.Groups[1].Value.Trim();
                                         }
                                     }
-                                    
+
                                     // Fallback to channel name if no album found
                                     if (string.IsNullOrEmpty(album) && !string.IsNullOrEmpty(channel))
                                     {
@@ -1414,7 +1414,7 @@ namespace MediaConverterToMP3.Views
             if (track.IsDownloading && _downloadCancellationTokenSource != null)
             {
                 _downloadCancellationTokenSource.Cancel();
-                
+
                 // Kill all active processes for this track
                 lock (_processLock)
                 {
@@ -1434,13 +1434,13 @@ namespace MediaConverterToMP3.Views
                         _activeProcesses.Clear();
                     }
                 }
-                
+
                 track.IsDownloading = false;
                 track.CanDownload = true;
                 track.DownloadButtonText = "Download";
                 track.ShowProgress = false;
                 StatusText.Text = "Download cancelled successfully.";
-                
+
                 _downloadCancellationTokenSource?.Dispose();
                 _downloadCancellationTokenSource = null;
                 _progressTimer?.Stop();
@@ -1471,7 +1471,7 @@ namespace MediaConverterToMP3.Views
             {
                 // Initialize cancellation token source for this download first
                 _downloadCancellationTokenSource = new CancellationTokenSource();
-                
+
                 track.CanDownload = false;
                 track.IsDownloading = true;
                 track.DownloadButtonText = "⏹️ Stop";
@@ -1525,7 +1525,7 @@ namespace MediaConverterToMP3.Views
                 _progressTimer = null;
                 _currentDownloadingTrack = null;
                 _displayedProgressPercent = 0;
-                
+
                 // Reset download state
                 track.IsDownloading = false;
                 _downloadCancellationTokenSource?.Dispose();
@@ -1542,7 +1542,7 @@ namespace MediaConverterToMP3.Views
                 _progressTimer = null;
                 _currentDownloadingTrack = null;
                 _displayedProgressPercent = 0;
-                
+
                 // Reset download state
                 track.IsDownloading = false;
                 _downloadCancellationTokenSource?.Dispose();
@@ -1560,7 +1560,7 @@ namespace MediaConverterToMP3.Views
                     track.CanDownload = true;
                     track.DownloadButtonText = "Download";
                     StatusText.Text = $"Download failed: {ex.Message}";
-                    
+
                     // Show custom error dialog only for actual errors, not cancellations
                     var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download {track.Title}:\n{ex.Message}")
                     {
@@ -2340,7 +2340,7 @@ namespace MediaConverterToMP3.Views
             if (_isDownloadingAll && _downloadAllCancellationTokenSource != null)
             {
                 _downloadAllCancellationTokenSource.Cancel();
-                
+
                 // Kill all active processes
                 lock (_processLock)
                 {
@@ -2360,7 +2360,7 @@ namespace MediaConverterToMP3.Views
                         _activeProcesses.Clear();
                     }
                 }
-                
+
                 // Also kill any yt-dlp or ffmpeg processes
                 try
                 {
@@ -2374,12 +2374,12 @@ namespace MediaConverterToMP3.Views
                     }
                 }
                 catch { }
-                
+
                 _isDownloadingAll = false;
                 DownloadAllButton.Content = "Download All";
                 DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
                 StatusText.Text = "Download cancelled successfully.";
-                
+
                 // Reset all queued/downloading tracks (but keep already downloaded ones)
                 foreach (var track in _tracks)
                 {
@@ -2396,29 +2396,29 @@ namespace MediaConverterToMP3.Views
                         track.DownloadButtonText = "Download";
                     }
                 }
-                
+
                 _downloadAllCancellationTokenSource?.Dispose();
                 _downloadAllCancellationTokenSource = null;
                 return;
             }
-            
+
             // Start downloading all tracks
             if (!_isSpotifyPlaylist || _tracks.Count == 0)
             {
                 return;
             }
-            
+
             try
             {
                 _downloadAllCancellationTokenSource = new CancellationTokenSource();
                 _isDownloadingAll = true;
                 DownloadAllButton.Content = "⏹️ Stop";
                 DownloadAllButton.Style = (System.Windows.Style)FindResource("StopButtonStyle");
-                
+
                 var tracksToDownload = _tracks?.Where(t => t != null && t.CanDownload).ToList() ?? new List<TrackItem>();
                 int totalTracks = tracksToDownload.Count;
                 int downloadedCount = 0;
-                
+
                 if (totalTracks == 0)
                 {
                     StatusText.Text = "No tracks to download.";
@@ -2429,7 +2429,7 @@ namespace MediaConverterToMP3.Views
                     _downloadAllCancellationTokenSource = null;
                     return;
                 }
-                
+
                 // Mark all tracks as queued/downloading
                 foreach (var track in tracksToDownload)
                 {
@@ -2440,9 +2440,9 @@ namespace MediaConverterToMP3.Views
                         track.IsDownloading = false; // Not actively downloading yet, just queued
                     }
                 }
-                
+
                 StatusText.Text = $"Downloading {downloadedCount}/{totalTracks} tracks...";
-                
+
                 foreach (var track in tracksToDownload)
                 {
                     if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
@@ -2450,25 +2450,25 @@ namespace MediaConverterToMP3.Views
                         StatusText.Text = "Download cancelled successfully.";
                         break;
                     }
-                    
+
                     try
                     {
                         // Mark track as actively downloading (but don't show stop button for Download All)
                         track.IsDownloading = false; // Keep false so no stop button appears
                         track.DownloadButtonText = "Downloading...";
-                        
+
                         string fileNameTitle = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Title" : track.Title;
                         string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
                         string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp3");
-                        
+
                         if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
                         {
                             StatusText.Text = "Download cancelled successfully.";
                             break;
                         }
-                        
+
                         await DownloadAndConvertTrack(track, outputPath, _downloadAllCancellationTokenSource.Token);
-                        
+
                         downloadedCount++;
                         track.IsDownloading = false;
                         track.CanDownload = false;
@@ -2480,7 +2480,7 @@ namespace MediaConverterToMP3.Views
                         // Check if it was a cancellation or if cancellation was requested
                         bool isCancelled = ex is OperationCanceledException || ex is TaskCanceledException ||
                                           (_downloadAllCancellationTokenSource != null && _downloadAllCancellationTokenSource.Token.IsCancellationRequested);
-                        
+
                         if (isCancelled)
                         {
                             // Reset track state on cancellation
@@ -2508,7 +2508,7 @@ namespace MediaConverterToMP3.Views
                         // Continue with next track
                     }
                 }
-                
+
                 // Only show success message if not cancelled
                 if (_downloadAllCancellationTokenSource != null && !_downloadAllCancellationTokenSource.Token.IsCancellationRequested)
                 {
@@ -2523,7 +2523,7 @@ namespace MediaConverterToMP3.Views
             {
                 // Check if it was a cancellation (not an error)
                 bool isCancelled = ex is OperationCanceledException || ex is TaskCanceledException;
-                
+
                 // Also check if cancellation was requested (even if we got a NullReferenceException)
                 if (ex is NullReferenceException)
                 {
@@ -2543,7 +2543,7 @@ namespace MediaConverterToMP3.Views
                         }
                     }
                 }
-                
+
                 if (isCancelled)
                 {
                     StatusText.Text = "Download cancelled successfully.";
@@ -2551,7 +2551,7 @@ namespace MediaConverterToMP3.Views
                 else
                 {
                     StatusText.Text = $"Download failed: {ex.Message}";
-                    
+
                     // Show custom error dialog only for actual errors, not cancellations
                     var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download all tracks:\n{ex.Message}")
                     {
@@ -2565,7 +2565,7 @@ namespace MediaConverterToMP3.Views
                 _isDownloadingAll = false;
                 DownloadAllButton.Content = "Download All";
                 DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
-                
+
                 // Reset any remaining queued/downloading tracks that didn't complete (but keep downloaded ones)
                 foreach (var track in _tracks)
                 {
@@ -2582,7 +2582,7 @@ namespace MediaConverterToMP3.Views
                         track.DownloadButtonText = "Download";
                     }
                 }
-                
+
                 _downloadAllCancellationTokenSource?.Dispose();
                 _downloadAllCancellationTokenSource = null;
             }

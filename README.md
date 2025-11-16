@@ -55,35 +55,6 @@ A C# WPF application that searches and downloads music from both Spotify and You
 - Files are saved as high-quality MP3 to your chosen directory
 - Already downloaded files are marked with "Already Downloaded ✓"
 
-## Building from Source
-
-### Prerequisites
-- .NET 8.0 SDK
-- yt-dlp.exe, ffmpeg.exe, ffprobe.exe (place in `bin` folder)
-
-### Build Steps
-
-1. Clone the repository
-2. Restore dependencies: `dotnet restore`
-3. Build: `dotnet build`
-4. Run: `dotnet run`
-
-### Building Standalone Executable
-
-#### Windows
-1. Place `yt-dlp.exe`, `ffmpeg.exe`, and `ffprobe.exe` in the `bin` folder
-2. Build:
-   ```
-   dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-   ```
-3. Copy external tools to publish folder:
-   ```
-   copy bin\yt-dlp.exe bin\Release\net8.0-windows\win-x64\publish\
-   copy bin\ffmpeg.exe bin\Release\net8.0-windows\win-x64\publish\
-   copy bin\ffprobe.exe bin\Release\net8.0-windows\win-x64\publish\
-   ```
-4. Executable location: `bin\Release\net8.0-windows\win-x64\publish\MediaConverterToMP3.exe`
-
 #### macOS
 **Note:** WPF is Windows-only. For macOS support, the UI needs to be ported to a cross-platform framework like Avalonia UI or .NET MAUI.
 
