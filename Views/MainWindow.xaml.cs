@@ -2100,24 +2100,39 @@ namespace SpotifyToMP3.Views
                 DownloadAllButton.Content = "⏹️ Stop";
                 DownloadAllButton.Style = (System.Windows.Style)FindResource("StopButtonStyle");
                 
-                var tracksToDownload = _tracks.Where(t => t.CanDownload).ToList();
+                var tracksToDownload = _tracks?.Where(t => t != null && t.CanDownload).ToList() ?? new List<TrackItem>();
                 int totalTracks = tracksToDownload.Count;
                 int downloadedCount = 0;
+                
+                if (totalTracks == 0)
+                {
+                    StatusText.Text = "No tracks to download.";
+                    _isDownloadingAll = false;
+                    DownloadAllButton.Content = "Download All";
+                    DownloadAllButton.Style = (System.Windows.Style)FindResource("PrimaryButtonStyle");
+                    _downloadAllCancellationTokenSource?.Dispose();
+                    _downloadAllCancellationTokenSource = null;
+                    return;
+                }
                 
                 // Mark all tracks as queued/downloading
                 foreach (var track in tracksToDownload)
                 {
-                    track.CanDownload = false;
-                    track.DownloadButtonText = "Queued...";
-                    track.IsDownloading = false; // Not actively downloading yet, just queued
+                    if (track != null)
+                    {
+                        track.CanDownload = false;
+                        track.DownloadButtonText = "Queued...";
+                        track.IsDownloading = false; // Not actively downloading yet, just queued
+                    }
                 }
                 
                 StatusText.Text = $"Downloading {downloadedCount}/{totalTracks} tracks...";
                 
                 foreach (var track in tracksToDownload)
                 {
-                    if (_downloadAllCancellationTokenSource.Token.IsCancellationRequested)
+                    if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
                     {
+                        StatusText.Text = "Download cancelled successfully.";
                         break;
                     }
                     
@@ -2131,6 +2146,12 @@ namespace SpotifyToMP3.Views
                         string fileNameArtist = string.IsNullOrWhiteSpace(track.Artist) ? "Unknown Artist" : track.Artist;
                         string outputPath = Path.Combine(_downloadPath, $"{SanitizeFileName(fileNameTitle)} - {SanitizeFileName(fileNameArtist)}.mp3");
                         
+                        if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
+                        {
+                            StatusText.Text = "Download cancelled successfully.";
+                            break;
+                        }
+                        
                         await DownloadAndConvertTrack(track, outputPath, _downloadAllCancellationTokenSource.Token);
                         
                         downloadedCount++;
@@ -2141,38 +2162,88 @@ namespace SpotifyToMP3.Views
                     }
                     catch (Exception ex)
                     {
-                        // Check if it was a cancellation
-                        if (ex is OperationCanceledException || ex is TaskCanceledException)
+                        // Check if it was a cancellation or if cancellation was requested
+                        bool isCancelled = ex is OperationCanceledException || ex is TaskCanceledException ||
+                                          (_downloadAllCancellationTokenSource != null && _downloadAllCancellationTokenSource.Token.IsCancellationRequested);
+                        
+                        if (isCancelled)
                         {
                             // Reset track state on cancellation
-                            track.IsDownloading = false;
-                            track.CanDownload = true;
-                            track.DownloadButtonText = "Download";
+                            if (track != null)
+                            {
+                                track.IsDownloading = false;
+                                track.CanDownload = true;
+                                track.DownloadButtonText = "Download";
+                            }
+                            // Break out of loop on cancellation
+                            StatusText.Text = "Download cancelled successfully.";
+                            break;
                         }
                         else
                         {
                             // Reset track state on error
-                            track.IsDownloading = false;
-                            track.CanDownload = true;
-                            track.DownloadButtonText = "Download";
-                            System.Diagnostics.Debug.WriteLine($"Failed to download {track.Title}: {ex.Message}");
+                            if (track != null)
+                            {
+                                track.IsDownloading = false;
+                                track.CanDownload = true;
+                                track.DownloadButtonText = "Download";
+                                System.Diagnostics.Debug.WriteLine($"Failed to download {track.Title}: {ex.Message}");
+                            }
                         }
                         // Continue with next track
                     }
                 }
                 
-                StatusText.Text = $"Successfully downloaded {downloadedCount}/{totalTracks} tracks";
+                // Only show success message if not cancelled
+                if (_downloadAllCancellationTokenSource != null && !_downloadAllCancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    StatusText.Text = $"Successfully downloaded {downloadedCount}/{totalTracks} tracks";
+                }
+                else
+                {
+                    StatusText.Text = "Download cancelled successfully.";
+                }
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Download failed: {ex.Message}";
+                // Check if it was a cancellation (not an error)
+                bool isCancelled = ex is OperationCanceledException || ex is TaskCanceledException;
                 
-                // Show custom error dialog
-                var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download all tracks:\n{ex.Message}")
+                // Also check if cancellation was requested (even if we got a NullReferenceException)
+                if (ex is NullReferenceException)
                 {
-                    Owner = this
-                };
-                errorDialog.ShowDialog();
+                    try
+                    {
+                        if (_downloadAllCancellationTokenSource == null || _downloadAllCancellationTokenSource.Token.IsCancellationRequested)
+                        {
+                            isCancelled = true;
+                        }
+                    }
+                    catch
+                    {
+                        // If we can't check, assume it's cancelled if the source is null
+                        if (_downloadAllCancellationTokenSource == null)
+                        {
+                            isCancelled = true;
+                        }
+                    }
+                }
+                
+                if (isCancelled)
+                {
+                    StatusText.Text = "Download cancelled successfully.";
+                }
+                else
+                {
+                    StatusText.Text = $"Download failed: {ex.Message}";
+                    
+                    // Show custom error dialog only for actual errors, not cancellations
+                    var errorDialog = new Views.ErrorDialog("Download Error", $"Failed to download all tracks:\n{ex.Message}")
+                    {
+                        Owner = this
+                    };
+                    errorDialog.ShowDialog();
+                }
             }
             finally
             {
