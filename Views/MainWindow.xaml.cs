@@ -3090,7 +3090,108 @@ namespace MediaConverterToMP3.Views
             }
         }
 
+        private System.Windows.Controls.Primitives.Popup? _folderMenuPopup;
+
         private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            if (button == null) return;
+
+            // Close existing popup if open
+            if (_folderMenuPopup != null && _folderMenuPopup.IsOpen)
+            {
+                _folderMenuPopup.IsOpen = false;
+                return;
+            }
+
+            // Create popup for dropdown menu
+            var popup = new System.Windows.Controls.Primitives.Popup
+            {
+                PlacementTarget = button,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true
+            };
+
+            // Create border container with styling - match button width
+            var menuBorder = new System.Windows.Controls.Border
+            {
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(40, 40, 40)),
+                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(29, 185, 84)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(0, 0, 25, 25),
+                Padding = new Thickness(4),
+                Width = button.ActualWidth > 0 ? button.ActualWidth : button.MinWidth
+            };
+
+            // Create stack panel for menu items
+            var stackPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Vertical
+            };
+
+            // Create download folder button
+            var downloadButton = new System.Windows.Controls.Button
+            {
+                Content = "📁 Download Folder",
+                Background = System.Windows.Media.Brushes.Transparent,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(15, 12, 15, 12),
+                FontSize = 13,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            downloadButton.Click += (s, args) =>
+            {
+                popup.IsOpen = false;
+                OpenDownloadFolder();
+            };
+            downloadButton.MouseEnter += (s, args) =>
+            {
+                downloadButton.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(29, 185, 84));
+            };
+            downloadButton.MouseLeave += (s, args) =>
+            {
+                downloadButton.Background = System.Windows.Media.Brushes.Transparent;
+            };
+            stackPanel.Children.Add(downloadButton);
+
+            // Create Spotify folder button
+            var spotifyButton = new System.Windows.Controls.Button
+            {
+                Content = "🎵 Spotify Folder",
+                Background = System.Windows.Media.Brushes.Transparent,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(15, 12, 15, 12),
+                FontSize = 13,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            spotifyButton.Click += (s, args) =>
+            {
+                popup.IsOpen = false;
+                OpenSpotifyFolder();
+            };
+            spotifyButton.MouseEnter += (s, args) =>
+            {
+                spotifyButton.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(29, 185, 84));
+            };
+            spotifyButton.MouseLeave += (s, args) =>
+            {
+                spotifyButton.Background = System.Windows.Media.Brushes.Transparent;
+            };
+            stackPanel.Children.Add(spotifyButton);
+
+            menuBorder.Child = stackPanel;
+            popup.Child = menuBorder;
+
+            _folderMenuPopup = popup;
+            popup.IsOpen = true;
+        }
+
+        private void OpenDownloadFolder()
         {
             try
             {
@@ -3101,15 +3202,50 @@ namespace MediaConverterToMP3.Views
                 }
 
                 // Open the folder in Windows Explorer
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                var processInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = _downloadPath,
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{_downloadPath}\"",
                     UseShellExecute = true
-                });
+                };
+                System.Diagnostics.Process.Start(processInfo);
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Failed to open folder:\n{ex.Message}",
+                System.Windows.MessageBox.Show($"Failed to open download folder:\n{ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OpenSpotifyFolder()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_spotifyLocalFilesPath))
+                {
+                    System.Windows.MessageBox.Show("Spotify Local Files Path is not configured in Settings.",
+                        "Path Not Configured", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Ensure directory exists
+                if (!Directory.Exists(_spotifyLocalFilesPath))
+                {
+                    Directory.CreateDirectory(_spotifyLocalFilesPath);
+                }
+
+                // Open the folder in Windows Explorer
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{_spotifyLocalFilesPath}\"",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(processInfo);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to open Spotify folder:\n{ex.Message}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

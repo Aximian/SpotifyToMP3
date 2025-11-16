@@ -23,7 +23,10 @@
         </Style>
     </Window.Resources>
     
-    <Grid Margin="30">
+    <Border CornerRadius="45" 
+            ClipToBounds="True"
+            Background="{StaticResource BackgroundColor}">
+        <Grid Margin="30">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -150,12 +153,25 @@
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
                 <Button x:Name="OpenFolderButton"
-                        Content="📁 Open Folder" 
-                        Style="{StaticResource PrimaryButtonStyle}"
                         Height="40" 
-                        MinWidth="130" 
+                        MinWidth="170" 
                         Margin="0,0,10,0"
-                        Click="OpenFolderButton_Click"/>
+                        Click="OpenFolderButton_Click"
+                        Style="{StaticResource PrimaryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="📁 Open Folder" 
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <Path Data="M 0,0 L 5,5 L 10,0 Z" 
+                              Fill="White" 
+                              Stretch="Uniform"
+                              Width="7"
+                              Height="5"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Center"
+                              RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </StackPanel>
+                </Button>
                 <Button x:Name="SettingsButton"
                         Content="⚙️ Settings" 
                         Style="{StaticResource PrimaryButtonStyle}"
@@ -539,5 +555,6 @@
             </Grid>
         </Border>
     </Grid>
+    </Border>
 </Window>
 
