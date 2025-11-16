@@ -151,109 +151,52 @@ namespace MediaConverterToMP3.Views
             }
             catch { }
 
-            // Delete all temp files and clear cache entries on app close
-            try
+            // Delete temp files and clear cache asynchronously (non-blocking)
+            // Use Task.Run to avoid blocking the UI thread during shutdown
+            Task.Run(() =>
             {
-                var cache = Models.DownloadCache.Load();
-                
-                // Delete all temp files before clearing cache
-                foreach (var entry in cache.Entries.Values)
-                {
-                    try
-                    {
-                        if (!string.IsNullOrEmpty(entry.TempFilePattern))
-                        {
-                            string? dir = Path.GetDirectoryName(entry.TempFilePattern);
-                            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-                            {
-                                // Try to find files matching the pattern
-                                string pattern = Path.GetFileName(entry.TempFilePattern) + ".*";
-                                var files = Directory.GetFiles(dir, pattern);
-                                foreach (var file in files)
-                                {
-                                    try
-                                    {
-                                        File.Delete(file);
-                                    }
-                                    catch { /* Ignore individual file deletion errors */ }
-                                }
-                                
-                                // Also try to find files with just the GUID pattern (in case pattern format differs)
-                                string guidPattern = Path.GetFileName(entry.TempFilePattern);
-                                if (!string.IsNullOrEmpty(guidPattern) && guidPattern.StartsWith("temp_"))
-                                {
-                                    var guidFiles = Directory.GetFiles(dir, guidPattern + ".*");
-                                    foreach (var file in guidFiles)
-                                    {
-                                        try
-                                        {
-                                            if (!files.Contains(file)) // Don't delete twice
-                                            {
-                                                File.Delete(file);
-                                            }
-                                        }
-                                        catch { /* Ignore individual file deletion errors */ }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Also check TempFilePath if it exists
-                        if (!string.IsNullOrEmpty(entry.TempFilePath) && File.Exists(entry.TempFilePath))
-                        {
-                            try
-                            {
-                                File.Delete(entry.TempFilePath);
-                            }
-                            catch { /* Ignore individual file deletion errors */ }
-                        }
-                    }
-                    catch { /* Ignore errors for individual entries */ }
-                }
-                
-                // Also clean up any orphaned temp files in common temp directories
                 try
                 {
-                    // Check download directory for temp files
-                    if (!string.IsNullOrEmpty(_downloadPath) && Directory.Exists(_downloadPath))
-                    {
-                        var tempFiles = Directory.GetFiles(_downloadPath, "temp_*.*");
-                        foreach (var file in tempFiles)
-                        {
-                            try
-                            {
-                                File.Delete(file);
-                            }
-                            catch { }
-                        }
-                    }
+                    var cache = Models.DownloadCache.Load();
                     
-                    // Check system temp directory for temp files from this app
-                    string systemTemp = Path.GetTempPath();
-                    if (Directory.Exists(systemTemp))
+                    // Only delete temp files from cache entries (fast, limited scope)
+                    foreach (var entry in cache.Entries.Values)
                     {
-                        var systemTempFiles = Directory.GetFiles(systemTemp, "temp_*.*");
-                        foreach (var file in systemTempFiles)
+                        try
                         {
-                            try
+                            // Quick deletion - only try the most likely pattern
+                            if (!string.IsNullOrEmpty(entry.TempFilePattern))
                             {
-                                // Only delete if file is recent (within last 24 hours) to avoid deleting other apps' files
-                                var fileInfo = new FileInfo(file);
-                                if (fileInfo.CreationTime > DateTime.Now.AddHours(-24))
+                                string? dir = Path.GetDirectoryName(entry.TempFilePattern);
+                                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
                                 {
-                                    File.Delete(file);
+                                    string pattern = Path.GetFileName(entry.TempFilePattern) + ".*";
+                                    try
+                                    {
+                                        var files = Directory.GetFiles(dir, pattern);
+                                        foreach (var file in files)
+                                        {
+                                            try { File.Delete(file); } catch { }
+                                        }
+                                    }
+                                    catch { }
                                 }
                             }
-                            catch { }
+                            
+                            // Also check TempFilePath if it exists
+                            if (!string.IsNullOrEmpty(entry.TempFilePath) && File.Exists(entry.TempFilePath))
+                            {
+                                try { File.Delete(entry.TempFilePath); } catch { }
+                            }
                         }
+                        catch { }
                     }
+                    
+                    // Clear all cache entries
+                    cache.ClearAll();
                 }
-                catch { /* Ignore cleanup errors */ }
-                
-                // Clear all cache entries
-                cache.ClearAll();
-            }
-            catch { }
+                catch { }
+            });
 
             // Force immediate exit - don't wait for anything
             e.Cancel = false;

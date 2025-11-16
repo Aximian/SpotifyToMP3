@@ -16,6 +16,13 @@ namespace MediaConverterToMP3.Views
     {
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
+            // Prevent searching while Download All is active
+            if (_isDownloadingAll)
+            {
+                StatusText.Text = "Please stop Download All before searching.";
+                return;
+            }
+
             if (_selectedSource == "Spotify" && string.IsNullOrEmpty(_accessToken))
             {
                 System.Windows.MessageBox.Show("Spotify credentials not configured.\n\nPlease go to Settings (⚙️ button) and enter your Spotify Client ID and Client Secret.\n\nSee README.md for instructions on getting credentials.",
