@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace SpotifyToMP3.Models
+namespace MediaConverterToMP3.Models
 {
     public class TokenResponse
     {

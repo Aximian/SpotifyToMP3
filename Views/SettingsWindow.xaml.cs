@@ -3,7 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Forms;
 
-namespace SpotifyToMP3.Views
+namespace MediaConverterToMP3.Views
 {
     public partial class SettingsWindow : Window
     {

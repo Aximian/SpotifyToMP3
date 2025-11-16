@@ -2,13 +2,13 @@ using System;
 using System.IO;
 using Newtonsoft.Json;
 
-namespace SpotifyToMP3.Models
+namespace MediaConverterToMP3.Models
 {
     public class AppSettings
     {
         public string DownloadPath { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
-            "SpotifyDownloads");
+            "MediaDownloads");
 
         public string? SpotifyClientId { get; set; }
         public string? SpotifyClientSecret { get; set; }
@@ -16,7 +16,7 @@ namespace SpotifyToMP3.Models
         private static string GetSettingsPath()
         {
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string settingsDir = Path.Combine(appDataPath, "SpotifyToMP3");
+            string settingsDir = Path.Combine(appDataPath, "MediaConverterToMP3");
             if (!Directory.Exists(settingsDir))
             {
                 Directory.CreateDirectory(settingsDir);

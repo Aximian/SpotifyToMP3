@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace SpotifyToMP3.Views
+namespace MediaConverterToMP3.Views
 {
     public partial class App : Application
     {

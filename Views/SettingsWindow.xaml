@@ -1,4 +1,4 @@
-<Window x:Class="SpotifyToMP3.Views.SettingsWindow"
+<Window x:Class="MediaConverterToMP3.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings" Height="600" Width="800"

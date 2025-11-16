@@ -1,12 +1,12 @@
-# Spotify & YouTube to MP3 Converter
+# Media Converter to MP3
 
 A C# WPF application that searches and downloads music from both Spotify and YouTube, converting them to MP3 files using Spotify's API and yt-dlp.
 
 ## Quick Start
 
 ### For End Users (Pre-built Release)
-1. **[Download the latest release](https://github.com/Aximian/SpotifyToMP3/releases/latest)** and extract it
-2. Run `SpotifyToMP3.exe` from the extracted folder
+1. **[Download the latest release](https://github.com/Aximian/MediaConverterToMP3/releases/latest)** and extract it
+2. Run `MediaConverterToMP3.exe` from the extracted folder
 3. Click Settings and enter your Spotify credentials (required for Spotify searches, see below)
 4. Select your source (Spotify or YouTube) using the selector in the top left
 5. Start searching and downloading
@@ -82,7 +82,7 @@ A C# WPF application that searches and downloads music from both Spotify and You
    copy bin\ffmpeg.exe bin\Release\net8.0-windows\win-x64\publish\
    copy bin\ffprobe.exe bin\Release\net8.0-windows\win-x64\publish\
    ```
-4. Executable location: `bin\Release\net8.0-windows\win-x64\publish\SpotifyToMP3.exe`
+4. Executable location: `bin\Release\net8.0-windows\win-x64\publish\MediaConverterToMP3.exe`
 
 #### macOS
 **Note:** WPF is Windows-only. For macOS support, the UI needs to be ported to a cross-platform framework like Avalonia UI or .NET MAUI.
@@ -110,7 +110,7 @@ Currently, macOS builds are not available. To add macOS support:
 - Make sure you've entered credentials in Settings
 
 **"yt-dlp not found" or "FFmpeg not found"**
-- For standalone builds: Make sure the .exe files are in the same folder as SpotifyToMP3.exe
+- For standalone builds: Make sure the .exe files are in the same folder as MediaConverterToMP3.exe
 - For development: Place them in the `bin` folder
 - These tools are required for YouTube downloads
 

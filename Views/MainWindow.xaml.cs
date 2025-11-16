@@ -12,9 +12,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Newtonsoft.Json;
-using SpotifyToMP3.Models;
+using MediaConverterToMP3.Models;
 
-namespace SpotifyToMP3.Views
+namespace MediaConverterToMP3.Views
 {
     public partial class MainWindow : Window
     {

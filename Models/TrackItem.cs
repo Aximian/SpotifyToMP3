@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using Newtonsoft.Json;
 
-namespace SpotifyToMP3.Models
+namespace MediaConverterToMP3.Models
 {
     public class TrackItem : INotifyPropertyChanged
     {
