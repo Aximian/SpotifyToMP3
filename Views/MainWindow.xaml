@@ -136,11 +136,12 @@
                     </Border>
                 </StackPanel>
             </StackPanel>
-            <StackPanel Grid.Column="1">
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                 <TextBlock x:Name="TitleText" Text="🎵 Spotify/YT Converter to MP3" 
                            FontSize="42" 
                            FontWeight="Bold" 
                            Foreground="{StaticResource TextColor}"
+                           HorizontalAlignment="Center"
                            Margin="0,0,0,5">
                     <TextBlock.Effect>
                         <DropShadowEffect Color="#1DB954" Direction="270" ShadowDepth="3" BlurRadius="10" Opacity="0.3"/>
@@ -149,6 +150,7 @@
                 <TextBlock x:Name="SubtitleText" Text="Convert your favorite Spotify tracks to MP3" 
                            FontSize="16" 
                            Foreground="{StaticResource SecondaryTextColor}"
+                           HorizontalAlignment="Center"
                            Margin="0,0,0,0"/>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">

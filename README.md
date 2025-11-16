@@ -1,6 +1,6 @@
 # Media Converter to MP3
 
-A C# WPF application that searches and downloads music from both Spotify and YouTube, converting them to MP3 files using Spotify's API and yt-dlp.
+A C# WPF application that searches and downloads music from both Spotify and YouTube, converting them to MP3 or MP4 files using Spotify's API and yt-dlp. Includes built-in support for adding downloaded MP3 files directly to Spotify Local Files.
 
 ## Quick Start
 
@@ -32,6 +32,7 @@ A C# WPF application that searches and downloads music from both Spotify and You
 ### Source Selection
 - Use the source selector in the top left corner to switch between **Spotify** (green) and **YouTube** (blue/red)
 - Spotify requires credentials (see below), YouTube works without any setup
+- When YouTube is selected, you can choose between **MP3** or **MP4** format using the format selector
 
 ### Searching
 
@@ -43,6 +44,7 @@ A C# WPF application that searches and downloads music from both Spotify and You
 
 2. **For YouTube:**
    - Select YouTube from the source selector
+   - Choose your preferred format: **MP3** (audio) or **MP4** (video) using the format selector
    - Enter a search query (song name, artist, etc.)
    - Or paste a YouTube video URL
    - Press Enter or click Search
@@ -51,9 +53,22 @@ A C# WPF application that searches and downloads music from both Spotify and You
 ### Downloading
 
 - Click **Download** next to any track to download it individually
+- Use **Download All** button to download all tracks in the current list
 - Use the **filter box** (with filter icon) to search through loaded results
-- Files are saved as high-quality MP3 to your chosen directory
+- Files are saved with proper naming (Title - Artist.mp3 or .mp4) to your chosen directory
 - Already downloaded files are marked with "Already Downloaded ✓"
+- The app automatically detects existing files and shows appropriate status
+
+### Adding to Spotify Local Files
+
+- After downloading MP3 files, you can add them directly to Spotify Local Files
+- Click **Add to Spotify Local** next to any downloaded MP3 track
+- Or use **🎵 Add All to Spotify** to add all downloaded MP3s at once
+- Configure your Spotify Local Files path in Settings (usually in Spotify's settings)
+- **Note:** MP4 files cannot be added to Spotify (only MP3 supported)
+- **Note:** The "Add to Spotify Local" button is automatically hidden for:
+  - Spotify source tracks (they're already from Spotify)
+  - MP4 format tracks (MP4 cannot be added to Spotify)
 
 #### macOS
 **Note:** WPF is Windows-only. For macOS support, the UI needs to be ported to a cross-platform framework like Avalonia UI or .NET MAUI.
@@ -66,12 +81,17 @@ Currently, macOS builds are not available. To add macOS support:
 ## Features
 
 - 🎵 **Dual Source Support**: Search and download from both Spotify and YouTube
+- 🎬 **Format Selection**: Choose MP3 (audio) or MP4 (video) format for YouTube downloads
 - 🔍 **Smart Search**: Text search or direct URL support for both platforms
-- 🎨 **Modern UI**: Clean, intuitive interface with source selector
+- 🎨 **Modern UI**: Clean, intuitive interface with source and format selectors
 - 🔽 **Filter Results**: Filter loaded tracks by title, artist, or album
 - ⚡ **Fast Downloads**: Optimized YouTube search and image loading
-- 📁 **Organized Output**: Files saved with proper naming (Title - Artist.mp3)
-- ⚙️ **Customizable**: Choose your download directory and manage settings
+- 📥 **Bulk Operations**: Download all tracks or add all MP3s to Spotify at once
+- 📁 **Organized Output**: Files saved with proper naming (Title - Artist.mp3/mp4)
+- 🎧 **Spotify Integration**: Add downloaded MP3 files directly to Spotify Local Files
+- ⚙️ **Customizable**: Choose your download directory, Spotify Local Files path, and manage settings
+- 🔄 **Smart Detection**: Automatically detects existing files and updates UI accordingly
+- 👁️ **Intelligent UI**: Buttons automatically show/hide based on source, format, and file status
 
 ## Troubleshooting
 
@@ -94,6 +114,16 @@ Currently, macOS builds are not available. To add macOS support:
 - Check your internet connection
 - Some tracks may not be available
 - For YouTube: Ensure yt-dlp and ffmpeg are working correctly
+
+**"Add to Spotify Local" button not showing**
+- Make sure you've configured the Spotify Local Files path in Settings
+- The button only appears for YouTube MP3 tracks (not MP4 or Spotify source tracks)
+- Ensure the track has been downloaded as MP3 first
+
+**MP4 downloads not working**
+- Ensure yt-dlp is up to date (MP4 support requires recent version)
+- Check that FFmpeg is properly installed and accessible
+- Some videos may have download restrictions
 
 ## Important Notes
 
